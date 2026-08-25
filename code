@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JUGMUG Rollforming · Service Desk</title>
+<style>
+:root{
+  --ink:#0b1220; --steel:#16212f; --steel-2:#1f2d3f; --canvas:#eff3f7; --surface:#fff;
+  --line:#d9e2ec; --line-soft:#eaf0f6; --muted:#617288; --muted-2:#8798ac;
+  --accent:#0e7490; --accent-2:#14b8a6; --accent-soft:#e0f4f7;
+  --ok:#047857; --ok-soft:#dcfce7; --warn:#b45309; --warn-soft:#fef3c7;
+  --late:#be123c; --late-soft:#ffe4e6; --done:#0369a1; --done-soft:#e0f2fe;
+  --pri:#7c2d92; --shadow:0 1px 2px rgba(11,18,32,.06),0 8px 24px -12px rgba(11,18,32,.18);
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{font-family:var(--sans);background:var(--canvas);color:var(--ink);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:none}
+::selection{background:var(--accent-soft)}
+input,select,textarea{border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:#fbfdfe;transition:border-color .15s,box-shadow .15s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+input:disabled,select:disabled,textarea:disabled{background:#f1f4f8;color:var(--muted-2)}
+/* login */
+.login-wrap{min-height:100vh;display:grid;place-items:center;padding:24px;
+  background:radial-gradient(1200px 600px at 20% -10%,#243549,var(--steel) 55%,#0d1620)}
+.login-card{width:100%;max-width:400px;background:var(--surface);border-radius:16px;padding:32px;box-shadow:0 30px 60px -20px rgba(0,0,0,.5)}
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.brand-mark{width:34px;height:34px;border-radius:8px;background:var(--steel);display:grid;place-items:center;flex:none}
+.brand-mark span{display:block;width:16px;height:3px;background:var(--accent-2);box-shadow:0 5px 0 #fff,0 -5px 0 #fff;border-radius:2px}
+.brand h1{font-size:16px;font-weight:800;letter-spacing:-.01em;line-height:1.15}
+.brand p{font-size:10.5px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-weight:600}
+.login-card h2{font-size:20px;margin:22px 0 2px;letter-spacing:-.02em}
+.login-card .sub{color:var(--muted);font-size:12.5px;margin-bottom:20px}
+.segs{display:flex;gap:5px;background:#eef2f6;border-radius:10px;padding:4px;margin-bottom:14px}
+.seg{flex:1;padding:8px 0;border-radius:8px;font-weight:700;font-size:12.5px;color:var(--muted)}
+.seg.on{background:var(--steel);color:#fff}
+label.field{display:block;margin-bottom:13px}
+.field .lbl{display:block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.field input,.field select,.field textarea{width:100%}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 15px;border-radius:9px;font-size:13px;font-weight:650;border:1px solid transparent;transition:.15s}
+.btn-primary{background:var(--steel);color:#fff}
+.btn-primary:hover{background:var(--steel-2)}
+.btn-accent{background:var(--accent);color:#fff}
+.btn-accent:hover{background:#0c6076}
+.btn-ghost{border-color:var(--line);background:var(--surface);color:var(--ink)}
+.btn-ghost:hover{background:var(--line-soft)}
+.btn-danger{color:var(--late);border-color:#f6cdd6;background:#fff}
+.btn-danger:hover{background:var(--late-soft)}
+.btn-sm{padding:6px 10px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.err{background:var(--late-soft);color:var(--late);font-size:12.5px;padding:8px 11px;border-radius:8px;margin-bottom:13px;border:1px solid #f6cdd6}
+.login-hint{margin-top:18px;padding-top:16px;border-top:1px solid var(--line-soft);font-size:11.5px;color:var(--muted);line-height:1.6;text-align:center}
+/* shell */
+.shell{display:grid;min-height:100vh;grid-template-columns:216px 1fr}
+.sidebar{background:var(--steel);color:#c8d4e2;padding:16px 12px;display:flex;flex-direction:column;gap:2px}
+.sidebar .brand{padding:4px 6px 18px}
+.sidebar .brand h1{color:#fff;font-size:14px}
+.sidebar .brand p{color:#7d8fa5;font-size:9.5px}
+.nav-btn{display:flex;align-items:center;gap:9px;width:100%;padding:8px 10px;border-radius:8px;font-size:13px;font-weight:550;color:#a9b8c9;text-align:left;transition:.13s}
+.nav-btn:hover{background:#22303f;color:#fff}
+.nav-btn.on{background:var(--accent);color:#fff;font-weight:650}
+.nav-btn .ico{width:16px;text-align:center;font-size:13px;flex:none}
+.nav-sep{height:1px;background:#2a3a4c;margin:11px 4px}
+.who{margin-top:auto;padding:11px 10px 4px;border-top:1px solid #2a3a4c}
+.who b{display:block;color:#fff;font-size:12.5px}
+.who span{font-size:10.5px;color:#7d8fa5;letter-spacing:.05em;text-transform:uppercase;font-weight:650}
+main{padding:22px 26px 40px;min-width:0;overflow-x:hidden}
+.page-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:18px}
+.page-head h2{font-size:22px;letter-spacing:-.025em;line-height:1.15}
+.page-head p{color:var(--muted);font-size:12.5px;margin-top:2px}
+.toastline{color:var(--ok);font-size:13px;font-weight:700}
+/* cards / kpi */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow)}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:13px 15px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--k,var(--accent))}
+.kpi .v{font-family:var(--mono);font-size:26px;font-weight:700;letter-spacing:-.03em;color:var(--k,var(--ink));line-height:1.1;font-variant-numeric:tabular-nums}
+.kpi .l{font-size:11.5px;font-weight:600;color:var(--muted);margin-top:3px}
+.kpi .s{font-size:10px;color:var(--muted-2);margin-top:1px}
+/* table */
+table{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--surface)}
+thead th{text-align:left;padding:9px 12px;background:#f7fafc;border-bottom:1px solid var(--line);font-size:10px;font-weight:750;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+tbody td{padding:9px 12px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+tbody tr{transition:background .12s}
+tbody tr:hover{background:#f5fbfc}
+tbody tr:last-child td{border-bottom:none}
+.pcode{font-family:var(--mono);font-size:11.5px;font-weight:700;white-space:nowrap}
+/* pills */
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;letter-spacing:.03em;border:1px solid;white-space:nowrap}
+.p-ok{background:var(--ok-soft);color:var(--ok);border-color:#a7e8c4}
+.p-warn{background:var(--warn-soft);color:var(--warn);border-color:#fcd77f}
+.p-late{background:var(--late-soft);color:var(--late);border-color:#f6cdd6}
+.p-done{background:var(--done-soft);color:var(--done);border-color:#a9d8f5}
+.p-mute{background:#f1f4f8;color:var(--muted);border-color:var(--line)}
+.p-pri{background:#fae8ff;color:var(--pri);border-color:#e9b8f2}
+/* toolbar */
+.toolbar{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:13px;align-items:center}
+.toolbar input[type=search],.toolbar select{padding:8px 11px;border:1px solid var(--line);border-radius:9px;background:var(--surface);font-size:12.5px}
+.toolbar input[type=search]{min-width:180px}
+.eyebrow{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-2)}
+.dsub{font-size:10.5px;color:var(--muted-2)}
+.empty{padding:34px 16px;text-align:center;color:var(--muted-2);font-size:12.5px}
+/* modal */
+.backdrop{position:fixed;inset:0;background:rgba(11,18,32,.55);display:grid;place-items:center;padding:16px;z-index:90;backdrop-filter:blur(2px)}
+.modal{background:var(--surface);border-radius:15px;width:100%;max-height:92vh;overflow-y:auto;box-shadow:0 30px 70px -20px rgba(0,0,0,.5)}
+.modal-h{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 20px 12px;border-bottom:1px solid var(--line-soft);position:sticky;top:0;background:var(--surface);z-index:2}
+.modal-h h3{font-size:16px;letter-spacing:-.02em}
+.x{width:28px;height:28px;border-radius:7px;color:var(--muted);font-size:18px;line-height:1;flex:none}
+.x:hover{background:var(--line-soft);color:var(--ink)}
+.modal-b{padding:16px 20px}
+@media (max-width:760px){.shell{grid-template-columns:1fr}.sidebar{flex-direction:row;flex-wrap:wrap;align-items:center;gap:4px}.sidebar .brand{padding:2px 6px;width:100%}.who{margin-top:0;border-top:none;padding:4px 8px;margin-left:auto}main{padding:16px 14px 32px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+try {
+const { useState, useEffect, useRef } = React;
+const e = React.createElement;
+
+// ================= CONFIG =================
+const APP_VERSION = "8.0.0";
+const PRIORITIES = ["Low", "Medium", "High", "Critical"];
+const STATUSES = ["Open", "In Progress", "Resolved", "Closed"];
+const ROUTE_STAGES = [
+  "Quotation Sent", "P.O. Received", "Raw Material Cutting", "Rough Machining",
+  "Keyway", "Heat Treatment", "Re-Machining", "Final Inspection",
+  "Packed", "Invoice Done", "Dispatched"
+];
+const BREAKDOWN_TYPES = ["Roll Tool Breakdown", "Shaft / Spindle Issue", "Gearbox / Drive Issue", "Electrical / PLC Issue", "Hydraulic Issue", "Alignment / Setup", "Spare Part Request", "Other"];
+
+const C = {
+  ink: "#0b1220", steel: "#16212f", steel2: "#1f2d3f", canvas: "#eff3f7",
+  surface: "#ffffff", line: "#d9e2ec", mute: "#617288", text: "#182433",
+  amber: "#b45309", amberBg: "#fef3c7", green: "#047857", greenBg: "#dcfce7",
+  red: "#be123c", redBg: "#ffe4e6", blue: "#0369a1", blueBg: "#e0f2fe",
+  purple: "#7c2d92", purpleBg: "#fae8ff", gold: "#d97706",
+  accent: "#0e7490", accent2: "#14b8a6"
+};
+const STATUS_TONE = { "Open": "p-done", "In Progress": "p-warn", "Resolved": "p-pri", "Closed": "p-ok" };
+const PRIORITY_TONE = { "Low": "p-mute", "Medium": "p-done", "High": "p-warn", "Critical": "p-late" };
+
+// ================= STORAGE =================
+const MEM = {};
+const Store = {
+  ok: (function () { try { localStorage.setItem("__t", "1"); localStorage.removeItem("__t"); return true; } catch (err) { return false; } })(),
+  get(k) {
+    try {
+      const raw = this.ok ? localStorage.getItem(k) : MEM[k];
+      return raw ? JSON.parse(raw) : null;
+    } catch (err) { return null; }
+  },
+  set(k, v) {
+    const raw = JSON.stringify(v);
+    if (this.ok) { try { localStorage.setItem(k, raw); } catch (err) { MEM[k] = raw; return false; } }
+    else MEM[k] = raw;
+    return true;
+  },
+  usage() {
+    if (!this.ok) return 0;
+    let n = 0;
+    try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); n += (localStorage.getItem(k) || "").length + k.length; } } catch (err) {}
+    return n;
+  }
+};
+const K = {
+  admin: "jm7_admin", staff: "jm7_staff", customers: "jm7_customers",
+  complaints: "jm7_complaints", activity: "jm7_activity", feedback: "jm7_feedback",
+  sops: "jm7_sops", session: "jm7_session", seq: "jm7_seq"
+};
+
+// ================= CLOUD DATA LAYER (Supabase-backed) =================
+// All data lives in the JUGMUG Supabase project (same as the Die Tooling
+// Platform). The client keeps an in-memory snapshot; every save is diffed
+// row-by-row and pushed to the service-desk API; a background poll keeps
+// every signed-in device in sync.
+const API_URL = (typeof window !== "undefined" && window.__SD_API_URL) ||
+  "https://nppfrpqlipihrfvzeegx.supabase.co/functions/v1/service-desk";
+
+function emptyDB() { return { admin: { password: "" }, staff: [], customers: [], complaints: [], activity: [], feedback: [], sops: [] }; }
+function deepCopy(o) { return JSON.parse(JSON.stringify(o)); }
+
+let CACHE = emptyDB();               // client working copy (source for loadDB)
+let SNAP = deepCopy(CACHE);          // last state confirmed with server (diff base)
+let SESSION = null;                  // { token, user }
+let PENDING = 0;                     // saves in flight (poll pauses while > 0)
+let SYNC_ERR = "";                   // last sync error, shown in UI
+
+async function apiCall(action, payload) {
+  const body = Object.assign({ action: action, token: SESSION ? SESSION.token : null }, payload || {});
+  const res = await fetch(API_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  let j = null;
+  try { j = await res.json(); } catch (e2) { throw new Error("Server unreachable (" + res.status + ")"); }
+  if (!j.ok) { const er = new Error(j.error || "Server error"); er.code = j.code; throw er; }
+  return j;
+}
+
+function adoptSnapshot(snap) {
+  const base = emptyDB();
+  ["staff", "customers", "complaints", "activity", "feedback", "sops"].forEach(function (k) { if (snap[k]) base[k] = snap[k]; });
+  if (snap.admin) base.admin = snap.admin;
+  CACHE = base;
+  SNAP = deepCopy(CACHE);
+}
+
+function loadDB() { return deepCopy(CACHE); }
+
+function saveDB(db, keys) {
+  const names = (keys || ["admin", "staff", "customers", "complaints", "activity", "feedback", "sops"])
+    .filter(function (n) { return n !== "session" && n !== "seq"; });
+  const puts = [], dels = [];
+  names.forEach(function (name) {
+    if (db[name] === undefined) return;
+    if (name === "admin") {
+      if (JSON.stringify(db.admin) !== JSON.stringify(SNAP.admin)) puts.push({ entity: "meta", id: "admin", data: db.admin });
+      CACHE.admin = deepCopy(db.admin); SNAP.admin = deepCopy(db.admin);
+      return;
+    }
+    const prev = {}; (SNAP[name] || []).forEach(function (r) { prev[r.id] = r; });
+    const seen = {};
+    (db[name] || []).forEach(function (r) {
+      if (!r || r.id === undefined) return;
+      seen[r.id] = true;
+      if (!prev[r.id] || JSON.stringify(prev[r.id]) !== JSON.stringify(r)) puts.push({ entity: name, id: r.id, data: r });
+    });
+    Object.keys(prev).forEach(function (id) { if (!seen[id]) dels.push({ entity: name, id: id }); });
+    CACHE[name] = deepCopy(db[name]); SNAP[name] = deepCopy(db[name]);
+  });
+  if (puts.length || dels.length) {
+    PENDING++;
+    apiCall("save", { puts: puts, dels: dels })
+      .then(function () { SYNC_ERR = ""; })
+      .catch(function (err) { SYNC_ERR = err.message || "Sync failed"; })
+      .then(function () { PENDING--; });
+  }
+}
+
+// IDs are derived from the live shared snapshot (max existing number + 1)
+function maxNum(list, prefix) {
+  let m = 0;
+  (list || []).forEach(function (x) {
+    if (x && typeof x.id === "string" && x.id.indexOf(prefix) === 0) {
+      const n = parseInt(x.id.slice(prefix.length), 10);
+      if (!isNaN(n) && n > m) m = n;
+    }
+  });
+  return m;
+}
+function staffId() { return "STF" + String(maxNum(CACHE.staff, "STF") + 1).padStart(4, "0"); }
+function custId() { return "ACC" + String(maxNum(CACHE.customers, "ACC") + 1).padStart(4, "0"); }
+function complaintId() {
+  const pre = "JM-" + new Date().getFullYear() + "-";
+  return pre + String(maxNum(CACHE.complaints, pre) + 1).padStart(4, "0");
+}
+function newRoute() { return ROUTE_STAGES.map(function (n) { return { n: n, s: "P" }; }); }
+function uid() { return Math.random().toString(36).slice(2, 9) + Date.now().toString(36); }
+
+function logAct(db, by, role, text) {
+  db.activity.unshift({ id: uid(), at: Date.now(), by: by, role: role, text: text });
+  if (db.activity.length > 400) db.activity.length = 400;
+}
+
+// ================= GENERIC HELPERS =================
+function fmtDate(t) { if (!t) return "—"; const d = new Date(t); return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }); }
+function fmtDT(t) { if (!t) return "—"; const d = new Date(t); return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) + " " + d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }); }
+function daysBetween(a, b) { return Math.floor((b - a) / 86400000); }
+function routeProgress(c) {
+  if (!c.route || !c.route.length) return 0;
+  const rel = c.route.filter(function (r) { return r.s !== "N"; });
+  if (!rel.length) return 0;
+  return Math.round(100 * rel.filter(function (r) { return r.s === "D"; }).length / rel.length);
+}
+// Delay in days vs target: >0 means delayed. Uses close date for closed complaints, today otherwise.
+function delayDays(c) {
+  if (!c.targetDate) return null;
+  const ref = (c.status === "Closed" && c.closedAt) ? c.closedAt : Date.now();
+  const d = daysBetween(new Date(c.targetDate + "T00:00:00").getTime(), ref);
+  return d > 0 ? d : 0;
+}
+function staffName(db, id) { const s = db.staff.find(function (x) { return x.id === id; }); return s ? s.name : (id || "Unassigned"); }
+function custName(db, id) { const s = db.customers.find(function (x) { return x.id === id; }); return s ? s.name : id; }
+function fileSizeStr(n) { return n > 1048576 ? (n / 1048576).toFixed(2) + " MB" : Math.round(n / 1024) + " KB"; }
+
+// ================= ATOMS =================
+function Pill(p) {
+  return e("span", { className: "pill " + (typeof p.tone === "string" ? p.tone : "p-mute") }, p.text);
+}
+function Btn(p) {
+  const kind = p.kind || "primary";
+  const cls = { primary: "btn btn-primary", accent: "btn btn-accent", ghost: "btn btn-ghost", danger: "btn btn-danger" }[kind];
+  return e("button", {
+    onClick: p.onClick, disabled: p.disabled, title: p.title,
+    className: cls + (p.small ? " btn-sm" : ""), style: p.style || undefined
+  }, p.children || p.label);
+}
+function Field(p) {
+  return e("label", { className: "field" },
+    e("span", { className: "lbl" }, p.label),
+    p.children);
+}
+const INPUT_S = { width: "100%", boxSizing: "border-box" };
+function Inp(p) { return e("input", Object.assign({ style: Object.assign({}, INPUT_S, p.style || {}) }, p, { style: Object.assign({}, INPUT_S, p.style || {}) })); }
+function Sel(p) {
+  return e("select", { value: p.value, onChange: p.onChange, style: Object.assign({}, INPUT_S, p.style || {}) },
+    (p.options || []).map(function (o) {
+      const v = typeof o === "string" ? o : o.value;
+      const l = typeof o === "string" ? o : o.label;
+      return e("option", { key: v, value: v }, l);
+    }));
+}
+function Card(p) {
+  return e("div", { className: "card", style: Object.assign({ padding: 18 }, p.style || {}) }, p.children);
+}
+function SectionTitle(p) {
+  return e("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", margin: "4px 0 12px" } },
+    e("h3", { style: { fontSize: 13.5, fontWeight: 800, letterSpacing: "-0.005em", color: C.ink, margin: 0 } }, p.title),
+    p.right || null);
+}
+// Signature: rollformed corrugation profile divider
+function Corrugation(p) {
+  const h = p.h || 10, w = 480, seg = 40;
+  let d = "M0 " + h;
+  for (let x = 0; x < w; x += seg) d += " L" + (x + 10) + " 1 L" + (x + 30) + " 1 L" + (x + seg) + " " + h;
+  return e("svg", { width: "100%", height: h + 2, viewBox: "0 0 " + w + " " + (h + 2), preserveAspectRatio: "none", style: { display: "block" } },
+    e("path", { d: d, fill: "none", stroke: p.color || C.line, strokeWidth: 1.5 }));
+}
+function Stars(p) {
+  const val = p.value || 0;
+  return e("div", { style: { display: "inline-flex", gap: p.size > 20 ? 6 : 2 } },
+    [1, 2, 3, 4, 5].map(function (i) {
+      return e("span", {
+        key: i,
+        onClick: p.onChange ? function () { p.onChange(i); } : undefined,
+        style: { cursor: p.onChange ? "pointer" : "default", fontSize: p.size || 16, color: i <= val ? C.gold : "#cfd8e3", lineHeight: 1, userSelect: "none" }
+      }, "★");
+    }));
+}
+function Modal(p) {
+  return e("div", { className: "backdrop", onClick: function (ev) { if (ev.target === ev.currentTarget && p.onClose) p.onClose(); } },
+    e("div", { className: "modal", style: { maxWidth: p.width || 720 } },
+      e("div", { className: "modal-h" },
+        e("h3", null, p.title),
+        e("button", { className: "x", onClick: p.onClose }, "×")),
+      e(Corrugation, { color: C.accent2, h: 7 }),
+      e("div", { className: "modal-b" }, p.children)));
+}
+function StatCard(p) {
+  return e("div", { className: "kpi", style: { flex: "1 1 148px", minWidth: 148, "--k": p.color || C.accent } },
+    e("div", { className: "v" }, p.value),
+    e("div", { className: "l" }, p.label),
+    p.sub ? e("div", { className: "s" }, p.sub) : null);
+}
+
+// ================= CHARTS (SVG) =================
+function Donut(p) {
+  const data = p.data.filter(function (d) { return d.value > 0; });
+  const total = data.reduce(function (a, d) { return a + d.value; }, 0);
+  if (!total) return e("div", { style: { color: C.mute, fontSize: 13, padding: 20 } }, "No complaints yet.");
+  let angle = -90;
+  const cx = 70, cy = 70, r = 52;
+  const arcs = data.map(function (d, i) {
+    const sweep = 360 * d.value / total;
+    const a0 = angle * Math.PI / 180, a1 = (angle + sweep) * Math.PI / 180;
+    angle += sweep;
+    if (data.length === 1) return e("circle", { key: i, cx: cx, cy: cy, r: r, fill: "none", stroke: d.color, strokeWidth: 22 });
+    const large = sweep > 180 ? 1 : 0;
+    const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
+    const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+    return e("path", { key: i, d: "M" + x0 + " " + y0 + " A" + r + " " + r + " 0 " + large + " 1 " + x1 + " " + y1, fill: "none", stroke: d.color, strokeWidth: 22 });
+  });
+  return e("div", { style: { display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" } },
+    e("svg", { width: 140, height: 140 }, arcs,
+      e("text", { x: cx, y: cy + 5, textAnchor: "middle", fontSize: 22, fontWeight: 800, fill: C.ink }, String(total))),
+    e("div", null, p.data.map(function (d, i) {
+      return e("div", { key: i, style: { display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 5 } },
+        e("span", { style: { width: 10, height: 10, borderRadius: 2, background: d.color, display: "inline-block" } }),
+        e("span", { style: { color: C.text } }, d.label + " — " + d.value));
+    })));
+}
+function HBars(p) {
+  const max = Math.max.apply(null, p.data.map(function (d) { return d.value; }).concat([1]));
+  return e("div", null, p.data.length ? p.data.map(function (d, i) {
+    return e("div", { key: i, style: { marginBottom: 10 } },
+      e("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 3 } },
+        e("span", { style: { fontWeight: 600, color: C.text } }, d.label),
+        e("span", { style: { color: C.mute } }, d.text || String(d.value))),
+      e("div", { style: { background: "#e6ebf2", borderRadius: 6, height: 10 } },
+        e("div", { style: { width: (100 * d.value / max) + "%", background: d.color || C.amber, height: 10, borderRadius: 6 } })));
+  }) : e("div", { style: { color: C.mute, fontSize: 13 } }, "No data yet."));
+}
+function TrendLine(p) {
+  const vals = p.values, w = 320, h = 90, max = Math.max.apply(null, vals.concat([1]));
+  const pts = vals.map(function (v, i) {
+    return [(i / Math.max(vals.length - 1, 1)) * (w - 20) + 10, h - 14 - (v / max) * (h - 30)];
+  });
+  return e("svg", { width: "100%", height: h, viewBox: "0 0 " + w + " " + h, preserveAspectRatio: "none" },
+    e("polyline", { points: pts.map(function (pp) { return pp.join(","); }).join(" "), fill: "none", stroke: C.blue, strokeWidth: 2.5 }),
+    pts.map(function (pp, i) { return e("circle", { key: i, cx: pp[0], cy: pp[1], r: 3, fill: C.blue }); }),
+    p.labels.map(function (l, i) {
+      return e("text", { key: "t" + i, x: pts[i][0], y: h - 2, fontSize: 9, textAnchor: "middle", fill: C.mute }, l);
+    }));
+}
+
+// ================= ROUTE STRIP =================
+const RS_COLOR = { P: "#e3eaf2", I: C.amber, D: C.green, N: "#b6c2d1" };
+function RouteStrip(p) {
+  return e("div", { style: { display: "flex", gap: 2 } },
+    (p.route || []).map(function (r, i) {
+      return e("span", { key: i, title: r.n + " — " + ({ P: "Pending", I: "In progress", D: "Done", N: "Not applicable" }[r.s]), style: { width: 9, height: 14, borderRadius: 2, background: RS_COLOR[r.s], display: "inline-block", opacity: r.s === "N" ? 0.35 : 1 } });
+    }));
+}
+function DelayBadge(p) {
+  const d = delayDays(p.c);
+  if (p.c.targetDate == null || p.c.targetDate === "") return e("span", { style: { color: C.mute, fontSize: 12 } }, "—");
+  if (d === null) return e("span", { style: { color: C.mute, fontSize: 12 } }, "—");
+  if (d > 0) return e(Pill, { text: "Delayed " + d + "d", tone: "p-late" });
+  return e(Pill, { text: "On time", tone: "p-ok" });
+}
+
+// ================= LOGIN =================
+function Login(p) {
+  const [tab, setTab] = useState("customer");
+  const [teamTab, setTeamTab] = useState("staff");
+  const [id, setId] = useState("");
+  const [pw, setPw] = useState("");
+  const [err, setErr] = useState("");
+
+  const [busy, setBusy] = useState(false);
+  function doLogin() {
+    if (busy) return;
+    setErr(""); setBusy(true);
+    const role = tab === "customer" ? "customer" : (teamTab === "staff" ? "staff" : "admin");
+    apiCall("login", { role: role, id: id.trim().toUpperCase(), password: pw })
+      .then(function (j) {
+        SESSION = { token: j.token, user: j.user };
+        Store.set(K.session, SESSION);
+        adoptSnapshot(j.snapshot);
+        setBusy(false);
+        p.onLogin(j.user);
+      })
+      .catch(function (err2) { setBusy(false); setErr(err2.message || "Could not sign in."); });
+  }
+  const tabBtn = function (key, label, cur, set) {
+    return e("button", {
+      onClick: function () { set(key); setErr(""); },
+      className: "seg" + (cur === key ? " on" : "")
+    }, label);
+  };
+  return e("div", { className: "login-wrap" },
+    e("div", { className: "login-card" },
+      e("div", { className: "brand" },
+        e("div", { className: "brand-mark" }, e("span", null)),
+        e("div", null,
+          e("h1", null, "JUGMUG Rollforming"),
+          e("p", null, "Service Desk"))),
+      e("h2", null, "Sign in"),
+      e("div", { className: "sub" }, "Machine complaints · service tracking · SOPs"),
+      e("div", { className: "segs" },
+        tabBtn("customer", "Customer Portal", tab, setTab),
+        tabBtn("team", "Team Console", tab, setTab)),
+      tab === "team" ? e("div", { className: "segs", style: { marginTop: -6 } },
+        tabBtn("staff", "Sales Service Staff", teamTab, setTeamTab),
+        tabBtn("admin", "Admin", teamTab, setTeamTab)) : null,
+      (tab === "customer" || teamTab === "staff") ? e(Field, { label: tab === "customer" ? "Customer ID (e.g. ACC0001)" : "Staff ID (e.g. STF0001)" },
+        e("input", { style: INPUT_S, value: id, placeholder: tab === "customer" ? "ACC0001" : "STF0001", onChange: function (ev) { setId(ev.target.value); } })) : null,
+      e(Field, { label: "Password" },
+        e("input", { style: INPUT_S, type: "password", value: pw, onChange: function (ev) { setPw(ev.target.value); }, onKeyDown: function (ev) { if (ev.key === "Enter") doLogin(); } })),
+      err ? e("div", { className: "err" }, err) : null,
+      e(Btn, { kind: "primary", onClick: doLogin, disabled: busy, style: { width: "100%" }, label: busy ? "Signing in…" : "Sign in" }),
+      e("div", { className: "login-hint" }, "IDs are issued by the JUGMUG team. v" + APP_VERSION)));
+}
+
+// ================= PASSWORD MODAL (shared: set desired password) =================
+function PasswordModal(p) {
+  const [pw1, setPw1] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [err, setErr] = useState("");
+  function save() {
+    if (pw1.length < 4) { setErr("Password must be at least 4 characters."); return; }
+    if (pw1 !== pw2) { setErr("Both entries must match."); return; }
+    p.onSave(pw1);
+  }
+  return e(Modal, { title: p.title || "Reset password", onClose: p.onClose, width: 420 },
+    p.subtitle ? e("div", { style: { fontSize: 13, color: C.mute, marginBottom: 12 } }, p.subtitle) : null,
+    e(Field, { label: "New password" }, e("input", { style: INPUT_S, type: "text", value: pw1, onChange: function (ev) { setPw1(ev.target.value); }, placeholder: "Type an easy password" })),
+    e(Field, { label: "Confirm new password" }, e("input", { style: INPUT_S, type: "text", value: pw2, onChange: function (ev) { setPw2(ev.target.value); } })),
+    err ? e("div", { style: { color: C.red, fontSize: 13, marginBottom: 10, fontWeight: 600 } }, err) : null,
+    e("div", { style: { display: "flex", gap: 8, justifyContent: "flex-end" } },
+      e(Btn, { kind: "ghost", onClick: p.onClose, label: "Cancel" }),
+      e(Btn, { kind: "accent", onClick: save, label: "Save password" })));
+}
+
+// ================= COMPLAINT MODAL =================
+function ComplaintModal(p) {
+  const db = p.db, user = p.user;
+  const c = db.complaints.find(function (x) { return x.id === p.cid; });
+  const [msg, setMsg] = useState("");
+  const [note, setNote] = useState("");
+  if (!c) return null;
+  const isTeam = user.role === "admin" || user.role === "staff";
+  const cust = db.customers.find(function (x) { return x.id === c.customerId; });
+  const comp = cust && (cust.companies || []).find(function (x) { return x.id === c.companyId; });
+  const mach = comp && (comp.machines || []).find(function (x) { return x.id === c.machineId; });
+
+  function mutate(fn, actText) {
+    fn(c);
+    saveDB(db, ["complaints"]);
+    if (actText) { logAct(db, user.name, user.role, actText); saveDB(db, ["activity"]); }
+    p.refresh();
+  }
+  function cycleStage(i) {
+    if (!isTeam) return;
+    const order = ["P", "I", "D", "N"];
+    mutate(function (cc) {
+      const cur = cc.route[i].s;
+      cc.route[i].s = order[(order.indexOf(cur) + 1) % 4];
+    }, user.name + " set “" + c.route[i].n + "” on " + c.id);
+  }
+  function setStatus(v) {
+    mutate(function (cc) {
+      cc.status = v;
+      if (v === "Closed") cc.closedAt = cc.closedAt || Date.now();
+      else cc.closedAt = null;
+    }, user.name + " set " + c.id + " status to " + v);
+  }
+  function setPriority(v) { mutate(function (cc) { cc.priority = v; }, null); }
+  function assign(staffIdv) {
+    mutate(function (cc) { cc.assignedTo = staffIdv || null; cc.assignedAt = staffIdv ? Date.now() : null; },
+      staffIdv ? "Admin assigned " + c.id + " to " + staffName(db, staffIdv) : "Admin unassigned " + c.id);
+  }
+  function setTarget(v) {
+    mutate(function (cc) { cc.targetDate = v || null; }, v ? "Admin set delivery target " + v + " on " + c.id : null);
+  }
+  function sendMsg() {
+    const t = msg.trim(); if (!t) return;
+    mutate(function (cc) { cc.messages.push({ by: user.name, role: user.role, text: t, at: Date.now() }); }, user.name + " messaged on " + c.id);
+    setMsg("");
+  }
+  function addNote() {
+    const t = note.trim(); if (!t) return;
+    mutate(function (cc) { cc.notes.push({ by: user.name, text: t, at: Date.now() }); }, null);
+    setNote("");
+  }
+  const pct = routeProgress(c);
+  const roleTone = { customer: "p-done", staff: "p-warn", admin: "p-pri" };
+
+  return e(Modal, { title: c.id + " · " + c.type, onClose: p.onClose, width: 840 },
+    e("div", { style: { display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14, alignItems: "center" } },
+      e(Pill, { text: c.status, tone: STATUS_TONE[c.status] }),
+      e(Pill, { text: c.priority, tone: PRIORITY_TONE[c.priority] }),
+      isTeam ? e(DelayBadge, { c: c }) : null,
+      e("span", { style: { fontSize: 12, color: C.mute } }, "Raised " + fmtDT(c.createdAt) + " by " + custName(db, c.customerId))),
+
+    e(Card, { style: { marginBottom: 14 } },
+      e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10, fontSize: 13 } },
+        e("div", null, e("b", null, "Company / plant: "), comp ? comp.name : "—"),
+        e("div", null, e("b", null, "Machine: "), mach ? mach.code + (mach.model ? " (" + mach.model + ")" : "") : "—"),
+        e("div", null, e("b", null, "Assigned to: "), c.assignedTo ? staffName(db, c.assignedTo) : "Unassigned"),
+        isTeam ? e("div", null, e("b", null, "Delivery target: "), c.targetDate ? fmtDate(new Date(c.targetDate + "T00:00:00").getTime()) : "Not set") : null),
+      e("div", { style: { marginTop: 10, fontSize: 14, color: C.text, whiteSpace: "pre-wrap" } }, c.desc)),
+
+    isTeam && user.role === "admin" ? e(Card, { style: { marginBottom: 14, background: C.purpleBg, borderColor: "#d9c9f5" } },
+      e(SectionTitle, { title: "Assignment & delivery target (admin)" }),
+      e("div", { style: { display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" } },
+        e("div", { style: { flex: "1 1 220px" } }, e(Field, { label: "Assign to sales service staff" },
+          e("select", { style: INPUT_S, value: c.assignedTo || "", onChange: function (ev) { assign(ev.target.value); } },
+            e("option", { value: "" }, "— Unassigned —"),
+            db.staff.filter(function (s) { return s.active !== false; }).map(function (s) { return e("option", { key: s.id, value: s.id }, s.name + " (" + s.id + ")"); })))),
+        e("div", { style: { flex: "1 1 180px" } }, e(Field, { label: "Delivery target date" },
+          e("input", { style: INPUT_S, type: "date", value: c.targetDate || "", onChange: function (ev) { setTarget(ev.target.value); } }))))) : null,
+
+    e(Card, { style: { marginBottom: 14 } },
+      e(SectionTitle, { title: "Service route — " + pct + "% complete", right: isTeam ? e("span", { style: { fontSize: 12, color: C.mute } }, "Tap a stage to cycle: Pending → In progress → Done → N/A") : null }),
+      e("div", { style: { background: "#e6ebf2", borderRadius: 6, height: 8, marginBottom: 12 } },
+        e("div", { style: { width: pct + "%", background: C.green, height: 8, borderRadius: 6 } })),
+      e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 8 } },
+        c.route.map(function (r, i) {
+          const lbl = { P: "Pending", I: "In progress", D: "Done", N: "N/A" }[r.s];
+          return e("div", {
+            key: i, onClick: function () { cycleStage(i); },
+            style: { border: "1px solid " + C.line, borderLeft: "4px solid " + RS_COLOR[r.s], borderRadius: 8, padding: "8px 10px", cursor: isTeam ? "pointer" : "default", background: "#fff", opacity: r.s === "N" ? 0.55 : 1 }
+          },
+            e("div", { style: { fontSize: 12, fontWeight: 700, color: C.text } }, (i + 1) + ". " + r.n),
+            e("div", { style: { fontSize: 11, color: r.s === "D" ? C.green : r.s === "I" ? C.amber : C.mute, fontWeight: 600 } }, lbl));
+        }))),
+
+    isTeam ? e(Card, { style: { marginBottom: 14 } },
+      e(SectionTitle, { title: "Status & priority" }),
+      e("div", { style: { display: "flex", gap: 12, flexWrap: "wrap" } },
+        e("div", { style: { flex: "1 1 180px" } }, e(Field, { label: "Status" }, e(Sel, { value: c.status, onChange: function (ev) { setStatus(ev.target.value); }, options: STATUSES }))),
+        e("div", { style: { flex: "1 1 180px" } }, e(Field, { label: "Priority" }, e(Sel, { value: c.priority, onChange: function (ev) { setPriority(ev.target.value); }, options: PRIORITIES }))))) : null,
+
+    (user.role !== "staff" && c.rating) ? e(Card, { style: { marginBottom: 14, background: "#fffbea", borderColor: "#f2e2ad" } },
+      e(SectionTitle, { title: "Customer rating" }),
+      e("div", { style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
+        e(Stars, { value: c.rating.stars, size: 20 }),
+        e("span", { style: { fontSize: 13, color: C.text } }, c.rating.comment || ""),
+        e("span", { style: { fontSize: 12, color: C.mute } }, "for " + staffName(db, c.rating.staffId) + " · " + fmtDT(c.rating.at)))) : null,
+
+    e(Card, { style: { marginBottom: isTeam ? 14 : 0 } },
+      e(SectionTitle, { title: "Messages" }),
+      e("div", { style: { maxHeight: 220, overflowY: "auto", marginBottom: 10 } },
+        c.messages.length ? c.messages.map(function (m, i) {
+          return e("div", { key: i, style: { marginBottom: 8, padding: "8px 10px", background: C.canvas, borderRadius: 8 } },
+            e("div", { style: { display: "flex", gap: 8, alignItems: "center", marginBottom: 3 } },
+              e("b", { style: { fontSize: 13 } }, m.by),
+              e(Pill, { text: m.role, tone: roleTone[m.role] || undefined }),
+              e("span", { style: { fontSize: 11, color: C.mute } }, fmtDT(m.at))),
+            e("div", { style: { fontSize: 13, whiteSpace: "pre-wrap" } }, m.text));
+        }) : e("div", { style: { fontSize: 13, color: C.mute } }, "No messages yet.")),
+      e("div", { style: { display: "flex", gap: 8 } },
+        e("input", { style: Object.assign({}, INPUT_S, { flex: 1 }), placeholder: "Write a message…", value: msg, onChange: function (ev) { setMsg(ev.target.value); }, onKeyDown: function (ev) { if (ev.key === "Enter") sendMsg(); } }),
+        e(Btn, { onClick: sendMsg, label: "Send" }))),
+
+    isTeam ? e(Card, null,
+      e(SectionTitle, { title: "Internal notes (team only)" }),
+      c.notes.length ? c.notes.map(function (n, i) {
+        return e("div", { key: i, style: { fontSize: 13, marginBottom: 6 } }, e("b", null, n.by + ": "), n.text, e("span", { style: { color: C.mute, fontSize: 11 } }, "  " + fmtDT(n.at)));
+      }) : e("div", { style: { fontSize: 13, color: C.mute, marginBottom: 8 } }, "No notes."),
+      e("div", { style: { display: "flex", gap: 8, marginTop: 8 } },
+        e("input", { style: Object.assign({}, INPUT_S, { flex: 1 }), placeholder: "Add an internal note…", value: note, onChange: function (ev) { setNote(ev.target.value); } }),
+        e(Btn, { kind: "ghost", onClick: addNote, label: "Add note" }))) : null);
+}
+
+// ================= COMPLAINT TABLE =================
+function ComplaintTable(p) {
+  const db = p.db;
+  const th = function (t) { return e("th", { key: t }, t); };
+  const td = function (children, key) { return e("td", { key: key }, children); };
+  const cols = ["ID", "Type", "Customer", "Status", "Priority", "Progress"];
+  if (p.team) { cols.push("Assigned"); cols.push("Target"); cols.push("Delay"); }
+  return e("div", { style: { overflowX: "auto" } },
+    e("table", null,
+      e("thead", null, e("tr", null, cols.map(th))),
+      e("tbody", null,
+        p.list.length ? p.list.map(function (c) {
+          const cells = [
+            td(e("span", { className: "pcode" }, c.id), "id"),
+            td(c.type, "ty"),
+            td(custName(db, c.customerId), "cu"),
+            td(e(Pill, { text: c.status, tone: STATUS_TONE[c.status] }), "st"),
+            td(e(Pill, { text: c.priority, tone: PRIORITY_TONE[c.priority] }), "pr"),
+            td(e("div", null, e(RouteStrip, { route: c.route }), e("div", { style: { fontSize: 11, color: C.mute, marginTop: 2 } }, routeProgress(c) + "%")), "pg")
+          ];
+          if (p.team) {
+            cells.push(td(c.assignedTo ? staffName(db, c.assignedTo) : e("span", { style: { color: C.mute } }, "Unassigned"), "as"));
+            cells.push(td(c.targetDate ? fmtDate(new Date(c.targetDate + "T00:00:00").getTime()) : "—", "tg"));
+            cells.push(td(e(DelayBadge, { c: c }), "dl"));
+          }
+          return e("tr", { key: c.id, onClick: function () { p.onOpen(c.id); }, style: { cursor: "pointer" } }, cells);
+        }) : e("tr", null, e("td", { colSpan: cols.length, style: { padding: 18, fontSize: 13, color: C.mute } }, "No complaints match.")))));
+}
+
+// ================= FILTER BAR =================
+function FilterBar(p) {
+  return e("div", { className: "toolbar" },
+    e("input", { type: "search", style: { flex: "2 1 200px" }, placeholder: "Search ID, type, customer…", value: p.q, onChange: function (ev) { p.setQ(ev.target.value); } }),
+    e("select", { style: { flex: "1 1 130px" }, value: p.status, onChange: function (ev) { p.setStatus(ev.target.value); } },
+      e("option", { value: "" }, "All statuses"),
+      STATUSES.map(function (s) { return e("option", { key: s, value: s }, s); })),
+    p.staffFilter !== undefined ? e("select", { style: { flex: "1 1 150px" }, value: p.staffFilter, onChange: function (ev) { p.setStaffFilter(ev.target.value); } },
+      e("option", { value: "" }, "All staff"),
+      e("option", { value: "none" }, "Unassigned"),
+      p.db.staff.map(function (s) { return e("option", { key: s.id, value: s.id }, s.name); })) : null);
+}
+function applyFilters(list, q, status, staffFilter, db) {
+  let out = list;
+  if (status) out = out.filter(function (c) { return c.status === status; });
+  if (staffFilter === "none") out = out.filter(function (c) { return !c.assignedTo; });
+  else if (staffFilter) out = out.filter(function (c) { return c.assignedTo === staffFilter; });
+  if (q) {
+    const s = q.toLowerCase();
+    out = out.filter(function (c) {
+      return c.id.toLowerCase().includes(s) || c.type.toLowerCase().includes(s) ||
+        custName(db, c.customerId).toLowerCase().includes(s) || (c.desc || "").toLowerCase().includes(s);
+    });
+  }
+  return out;
+}
+
+// ================= TEAM PERFORMANCE =================
+function perfRows(db) {
+  return db.staff.map(function (s) {
+    const mine = db.complaints.filter(function (c) { return c.assignedTo === s.id; });
+    const closed = mine.filter(function (c) { return c.status === "Closed"; });
+    const withTarget = closed.filter(function (c) { return c.targetDate; });
+    const onTime = withTarget.filter(function (c) { return delayDays(c) === 0; });
+    const openDelayed = mine.filter(function (c) { return c.status !== "Closed" && c.targetDate && delayDays(c) > 0; });
+    const rated = db.complaints.filter(function (c) { return c.rating && c.rating.staffId === s.id; });
+    const avgRating = rated.length ? rated.reduce(function (a, c) { return a + c.rating.stars; }, 0) / rated.length : null;
+    return {
+      staff: s, assigned: mine.length, open: mine.length - closed.length, closed: closed.length,
+      onTimePct: withTarget.length ? Math.round(100 * onTime.length / withTarget.length) : null,
+      delayedNow: openDelayed.length,
+      avgRating: avgRating, ratingCount: rated.length
+    };
+  });
+}
+function TeamPerformance(p) {
+  const rows = perfRows(p.db);
+  const th = function (t) { return e("th", { key: t }, t); };
+  const td = function (ch, k) { return e("td", { key: k }, ch); };
+  const cols = ["Staff", "Assigned", "Open", "Closed", "On-time delivery", "Delayed now"];
+  if (p.showRatings) cols.push("Customer rating");
+  return e("div", { style: { overflowX: "auto" } },
+    e("table", null,
+      e("thead", null, e("tr", null, cols.map(th))),
+      e("tbody", null, rows.length ? rows.map(function (r) {
+        const cells = [
+          td(e("b", null, r.staff.name + " ") , "n"),
+          td(String(r.assigned), "a"), td(String(r.open), "o"), td(String(r.closed), "c"),
+          td(r.onTimePct === null ? e("span", { style: { color: C.mute } }, "No closed targets") : e(Pill, { text: r.onTimePct + "%", tone: r.onTimePct >= 80 ? "p-ok" : r.onTimePct >= 50 ? "p-warn" : "p-late" }), "t"),
+          td(r.delayedNow ? e(Pill, { text: String(r.delayedNow), tone: "p-late" }) : "0", "d")
+        ];
+        if (p.showRatings) cells.push(td(r.avgRating === null ? e("span", { style: { color: C.mute } }, "No ratings") : e("span", null, e(Stars, { value: Math.round(r.avgRating) }), e("span", { style: { fontSize: 12, color: C.mute } }, " " + r.avgRating.toFixed(1) + " (" + r.ratingCount + ")")), "r"));
+        return e("tr", { key: r.staff.id }, cells);
+      }) : e("tr", null, e("td", { colSpan: cols.length, style: { padding: 16, fontSize: 13, color: C.mute } }, "No staff accounts yet.")))));
+}
+
+// ================= ADMIN DASHBOARD =================
+function AdminDashboard(p) {
+  const db = p.db;
+  const [, setTick] = useState(0);
+  useEffect(function () {
+    const t = setInterval(function () { setTick(function (x) { return x + 1; }); }, 3000);
+    return function () { clearInterval(t); };
+  }, []);
+  const live = loadDB();
+  const cs = live.complaints;
+  const open = cs.filter(function (c) { return c.status !== "Closed"; });
+  const delayed = cs.filter(function (c) { return c.targetDate && c.status !== "Closed" && delayDays(c) > 0; });
+  const ratings = cs.filter(function (c) { return c.rating; });
+  const avgAll = ratings.length ? (ratings.reduce(function (a, c) { return a + c.rating.stars; }, 0) / ratings.length).toFixed(1) : "—";
+  // trend: last 8 weeks
+  const now = Date.now(); const labels = []; const vals = [];
+  for (let i = 7; i >= 0; i--) {
+    const start = now - (i + 1) * 7 * 86400000, end = now - i * 7 * 86400000;
+    vals.push(cs.filter(function (c) { return c.createdAt > start && c.createdAt <= end; }).length);
+    labels.push("W-" + i);
+  }
+  return e("div", null,
+    e("div", { style: { display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 } },
+      e(StatCard, { label: "Total complaints", value: cs.length }),
+      e(StatCard, { label: "Open", value: open.length, color: C.blue }),
+      e(StatCard, { label: "Delayed vs target", value: delayed.length, color: delayed.length ? C.red : C.green }),
+      e(StatCard, { label: "Closed", value: cs.length - open.length, color: C.green }),
+      e(StatCard, { label: "Avg customer rating", value: avgAll, color: C.gold, sub: ratings.length + " rating" + (ratings.length === 1 ? "" : "s") })),
+    e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 12, marginBottom: 16 } },
+      e(Card, null, e(SectionTitle, { title: "Complaints by status" }),
+        e(Donut, { data: STATUSES.map(function (s) { return { label: s, value: cs.filter(function (c) { return c.status === s; }).length, color: STATUS_TONE[s].fg }; }) })),
+      e(Card, null, e(SectionTitle, { title: "Workload by staff" }),
+        e(HBars, { data: perfRows(live).map(function (r) { return { label: r.staff.name, value: r.assigned, text: r.open + " open / " + r.assigned + " total" }; }) })),
+      e(Card, null, e(SectionTitle, { title: "New complaints — last 8 weeks" }),
+        e(TrendLine, { values: vals, labels: labels }))),
+    e(Card, { style: { marginBottom: 16 } },
+      e(SectionTitle, { title: "Team performance — delivery & ratings" }),
+      e(TeamPerformance, { db: live, showRatings: true })),
+    e(Card, null,
+      e(SectionTitle, { title: "Live activity", right: e("span", { style: { fontSize: 11, color: C.green, fontWeight: 700 } }, "● auto-refreshing") }),
+      e("div", { style: { maxHeight: 260, overflowY: "auto" } },
+        live.activity.length ? live.activity.slice(0, 60).map(function (a, i) {
+          return e("div", { key: i, style: { fontSize: 13, padding: "6px 0", borderBottom: "1px solid " + C.canvas } },
+            e("span", { style: { color: C.mute, fontSize: 11, marginRight: 8 } }, fmtDT(a.at)), a.text);
+        }) : e("div", { style: { fontSize: 13, color: C.mute } }, "No activity yet."))));
+}
+
+// ================= STAFF ACCOUNTS (admin) =================
+function StaffAccounts(p) {
+  const db = p.db;
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [pw, setPw] = useState("");
+  const [made, setMade] = useState(null);
+  const [editId, setEditId] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [pwFor, setPwFor] = useState(null);
+
+  function create() {
+    if (!name.trim()) return;
+    const s = { id: staffId(), name: name.trim(), phone: phone.trim(), password: pw.trim() || Math.random().toString(36).slice(2, 8), active: true, createdAt: Date.now() };
+    db.staff.push(s);
+    logAct(db, "Admin", "admin", "Admin created staff account " + s.id + " (" + s.name + ")");
+    saveDB(db, ["staff", "activity"]);
+    setMade(s); setName(""); setPhone(""); setPw("");
+    p.refresh();
+  }
+  function saveEdit(s) {
+    const nn = editName.trim(); if (!nn) return;
+    s.name = nn;
+    logAct(db, "Admin", "admin", "Admin renamed staff " + s.id + " to " + nn);
+    saveDB(db, ["staff", "activity"]);
+    setEditId(null); p.refresh();
+  }
+  function toggle(s) {
+    s.active = s.active === false;
+    logAct(db, "Admin", "admin", "Admin " + (s.active ? "enabled" : "disabled") + " staff " + s.id);
+    saveDB(db, ["staff", "activity"]); p.refresh();
+  }
+  return e("div", null,
+    e(Card, { style: { marginBottom: 16 } },
+      e(SectionTitle, { title: "Create staff account" }),
+      e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 } },
+        e(Field, { label: "Full name" }, e("input", { style: INPUT_S, value: name, onChange: function (ev) { setName(ev.target.value); } })),
+        e(Field, { label: "Phone (optional)" }, e("input", { style: INPUT_S, value: phone, onChange: function (ev) { setPhone(ev.target.value); } })),
+        e(Field, { label: "Password (blank = auto)" }, e("input", { style: INPUT_S, value: pw, onChange: function (ev) { setPw(ev.target.value); } }))),
+      e(Btn, { kind: "accent", onClick: create, label: "Create staff account" }),
+      made ? e("div", { style: { marginTop: 12, padding: 12, background: C.greenBg, borderRadius: 8, fontSize: 14 } },
+        e("b", null, "Created! "), "ID: ", e("b", null, made.id), " · Password: ", e("b", null, made.password), " — share these with the staff member.") : null),
+    e(Card, null,
+      e(SectionTitle, { title: "Staff accounts (" + db.staff.length + ")" }),
+      db.staff.length ? db.staff.map(function (s) {
+        return e("div", { key: s.id, style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "10px 0", borderBottom: "1px solid " + C.canvas } },
+          e("b", { style: { minWidth: 70 } }, s.id),
+          editId === s.id
+            ? e("input", { style: Object.assign({}, INPUT_S, { maxWidth: 200 }), value: editName, onChange: function (ev) { setEditName(ev.target.value); } })
+            : e("span", { style: { flex: "1 1 140px" } }, s.name + (s.phone ? " · " + s.phone : "")),
+          e(Pill, { text: s.active === false ? "Disabled" : "Active", tone: s.active === false ? "p-late" : "p-ok" }),
+          editId === s.id
+            ? e(Btn, { small: true, onClick: function () { saveEdit(s); }, label: "Save" })
+            : e(Btn, { small: true, kind: "ghost", onClick: function () { setEditId(s.id); setEditName(s.name); }, label: "Edit" }),
+          e(Btn, { small: true, kind: "ghost", onClick: function () { setPwFor(s); }, label: "Reset password" }),
+          e(Btn, { small: true, kind: s.active === false ? "primary" : "danger", onClick: function () { toggle(s); }, label: s.active === false ? "Enable" : "Disable" }));
+      }) : e("div", { style: { fontSize: 13, color: C.mute } }, "No staff yet — create the first account above."),
+      pwFor ? e(PasswordModal, {
+        title: "Reset password — " + pwFor.name + " (" + pwFor.id + ")",
+        subtitle: "Set the desired password for this staff member.",
+        onClose: function () { setPwFor(null); },
+        onSave: function (npw) {
+          pwFor.password = npw;
+          logAct(db, "Admin", "admin", "Admin reset password for staff " + pwFor.id);
+          saveDB(db, ["staff", "activity"]);
+          setPwFor(null); p.refresh();
+        }
+      }) : null));
+}
+
+// ================= CUSTOMER ACCOUNTS (staff + admin) =================
+function CustomerAccounts(p) {
+  const db = p.db, user = p.user;
+  const emptyCo = function () { return { id: uid(), name: "", address: "", machines: [{ id: uid(), code: "", model: "" }] }; };
+  const [name, setName] = useState("");
+  const [pw, setPw] = useState("");
+  const [cos, setCos] = useState([emptyCo()]);
+  const [made, setMade] = useState(null);
+  const [pwFor, setPwFor] = useState(null);
+
+  function upCo(i, k, v) { const n = cos.slice(); n[i] = Object.assign({}, n[i]); n[i][k] = v; setCos(n); }
+  function upM(i, j, k, v) {
+    const n = cos.slice(); n[i] = Object.assign({}, n[i]);
+    n[i].machines = n[i].machines.slice(); n[i].machines[j] = Object.assign({}, n[i].machines[j]); n[i].machines[j][k] = v; setCos(n);
+  }
+  function create() {
+    if (!name.trim()) return;
+    const companies = cos.filter(function (co) { return co.name.trim(); }).map(function (co) {
+      return { id: co.id, name: co.name.trim(), address: co.address.trim(), machines: co.machines.filter(function (m) { return m.code.trim(); }).map(function (m) { return { id: m.id, code: m.code.trim(), model: m.model.trim() }; }) };
+    });
+    if (!companies.length) return;
+    const cu = { id: custId(), name: name.trim(), password: pw.trim() || Math.random().toString(36).slice(2, 8), companies: companies, createdAt: Date.now(), createdBy: user.id };
+    db.customers.push(cu);
+    logAct(db, user.name, user.role, user.name + " created customer account " + cu.id + " (" + cu.name + ")");
+    saveDB(db, ["customers", "activity"]);
+    setMade(cu); setName(""); setPw(""); setCos([emptyCo()]);
+    p.refresh();
+  }
+  return e("div", null,
+    e(Card, { style: { marginBottom: 16 } },
+      e(SectionTitle, { title: "Create customer account" + (user.role === "admin" ? " (admin can add directly)" : "") }),
+      e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 } },
+        e(Field, { label: "Customer / contact name" }, e("input", { style: INPUT_S, value: name, onChange: function (ev) { setName(ev.target.value); } })),
+        e(Field, { label: "Password (blank = auto)" }, e("input", { style: INPUT_S, value: pw, onChange: function (ev) { setPw(ev.target.value); } }))),
+      cos.map(function (co, i) {
+        return e("div", { key: co.id, style: { border: "1px dashed " + C.line, borderRadius: 10, padding: 12, marginBottom: 10, background: C.canvas } },
+          e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 } },
+            e(Field, { label: "Company / plant name #" + (i + 1) }, e("input", { style: INPUT_S, value: co.name, onChange: function (ev) { upCo(i, "name", ev.target.value); } })),
+            e(Field, { label: "Location / address" }, e("input", { style: INPUT_S, value: co.address, onChange: function (ev) { upCo(i, "address", ev.target.value); } }))),
+          e("div", { style: { fontSize: 12, fontWeight: 700, color: C.mute, textTransform: "uppercase", marginBottom: 6 } }, "Machines at this plant"),
+          co.machines.map(function (m, j) {
+            return e("div", { key: m.id, style: { display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" } },
+              e("input", { style: Object.assign({}, INPUT_S, { flex: "2 1 180px" }), placeholder: "Machine code e.g. 20-111-100-101", value: m.code, onChange: function (ev) { upM(i, j, "code", ev.target.value); } }),
+              e("input", { style: Object.assign({}, INPUT_S, { flex: "1 1 120px" }), placeholder: "Model (optional)", value: m.model, onChange: function (ev) { upM(i, j, "model", ev.target.value); } }));
+          }),
+          e(Btn, { small: true, kind: "ghost", onClick: function () { const n = cos.slice(); n[i] = Object.assign({}, n[i]); n[i].machines = n[i].machines.concat([{ id: uid(), code: "", model: "" }]); setCos(n); }, label: "+ Add machine" }));
+      }),
+      e("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
+        e(Btn, { kind: "ghost", onClick: function () { setCos(cos.concat([emptyCo()])); }, label: "+ Add another company / plant" }),
+        e(Btn, { kind: "accent", onClick: create, label: "Create customer account" })),
+      made ? e("div", { style: { marginTop: 12, padding: 12, background: C.greenBg, borderRadius: 8, fontSize: 14 } },
+        e("b", null, "Created! "), "Customer ID: ", e("b", null, made.id), " · Password: ", e("b", null, made.password), " — share these with the customer.") : null),
+    e(Card, null,
+      e(SectionTitle, { title: "Customer accounts (" + db.customers.length + ")" }),
+      db.customers.length ? db.customers.map(function (cu) {
+        const mCount = (cu.companies || []).reduce(function (a, co) { return a + (co.machines || []).length; }, 0);
+        return e("div", { key: cu.id, style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "10px 0", borderBottom: "1px solid " + C.canvas } },
+          e("b", { style: { minWidth: 76 } }, cu.id),
+          e("span", { style: { flex: "1 1 160px" } }, cu.name),
+          e("span", { style: { fontSize: 12, color: C.mute } }, (cu.companies || []).length + " plant(s) · " + mCount + " machine(s)"),
+          e(Btn, { small: true, kind: "ghost", onClick: function () { setPwFor(cu); }, label: "Reset password" }));
+      }) : e("div", { style: { fontSize: 13, color: C.mute } }, "No customers yet."),
+      pwFor ? e(PasswordModal, {
+        title: "Reset password — " + pwFor.name + " (" + pwFor.id + ")",
+        subtitle: "Set the desired password for this customer.",
+        onClose: function () { setPwFor(null); },
+        onSave: function (npw) {
+          pwFor.password = npw;
+          logAct(db, user.name, user.role, user.name + " reset password for customer " + pwFor.id);
+          saveDB(db, ["customers", "activity"]);
+          setPwFor(null); p.refresh();
+        }
+      }) : null));
+}
+
+// ================= SOP LIBRARY =================
+function SopLibrary(p) {
+  const db = p.db, user = p.user;
+  const [title, setTitle] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [viewing, setViewing] = useState(null);
+  const fileRef = useRef(null);
+  const isAdmin = user.role === "admin";
+
+  function upload() {
+    setErr("");
+    const f = fileRef.current && fileRef.current.files && fileRef.current.files[0];
+    if (!f) { setErr("Choose a PDF file first."); return; }
+    if (f.type !== "application/pdf" && !/\.pdf$/i.test(f.name)) { setErr("Only PDF files are accepted."); return; }
+    if (f.size > 2.5 * 1048576) { setErr("This PDF is " + fileSizeStr(f.size) + " — please keep SOP files under 2.5 MB so the platform stays fast."); return; }
+    setBusy(true);
+    const r = new FileReader();
+    r.onload = function () {
+      const sop = { id: uid(), title: title.trim() || f.name.replace(/\.pdf$/i, ""), fileName: f.name, size: f.size, dataUrl: r.result, at: Date.now(), by: user.name };
+      db.sops.push(sop);
+      logAct(db, user.name, "admin", "Admin uploaded SOP “" + sop.title + "”");
+      const ok = saveDB(db, ["sops", "activity"]);
+      setBusy(false); setTitle(""); if (fileRef.current) fileRef.current.value = "";
+      p.refresh();
+    };
+    r.onerror = function () { setBusy(false); setErr("Could not read that file — try again."); };
+    r.readAsDataURL(f);
+  }
+  function remove(sop) {
+    db.sops = db.sops.filter(function (s) { return s.id !== sop.id; });
+    logAct(db, user.name, "admin", "Admin removed SOP “" + sop.title + "”");
+    saveDB(db, ["sops", "activity"]);
+    p.refresh();
+  }
+  return e("div", null,
+    isAdmin ? e(Card, { style: { marginBottom: 16 } },
+      e(SectionTitle, { title: "Upload maintenance SOP (PDF)" }),
+      e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 } },
+        e(Field, { label: "SOP title" }, e("input", { style: INPUT_S, value: title, placeholder: "e.g. Weekly roll tooling maintenance", onChange: function (ev) { setTitle(ev.target.value); } })),
+        e(Field, { label: "PDF file (max 2.5 MB)" }, e("input", { style: INPUT_S, type: "file", accept: "application/pdf", ref: fileRef }))),
+      err ? e("div", { style: { color: C.red, fontSize: 13, marginBottom: 10, fontWeight: 600 } }, err) : null,
+      e(Btn, { kind: "accent", onClick: upload, disabled: busy, label: busy ? "Uploading…" : "Add SOP to library" }),
+      e("div", { style: { fontSize: 12, color: C.mute, marginTop: 8 } }, "SOPs are read-only for customers and staff. Only admin can add or remove them.")) : null,
+    e(Card, null,
+      e(SectionTitle, { title: "Standard operating procedures (" + db.sops.length + ")", right: !isAdmin ? e(Pill, { text: "Read-only", tone: "p-done" }) : null }),
+      db.sops.length ? db.sops.map(function (s) {
+        return e("div", { key: s.id, style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "10px 0", borderBottom: "1px solid " + C.canvas } },
+          e("span", { style: { fontSize: 20 } }, "📄"),
+          e("div", { style: { flex: "1 1 200px" } },
+            e("div", { style: { fontWeight: 700, fontSize: 14 } }, s.title),
+            e("div", { style: { fontSize: 12, color: C.mute } }, s.fileName + " · " + fileSizeStr(s.size) + " · added " + fmtDate(s.at))),
+          e(Btn, { small: true, onClick: function () { setViewing(s); }, label: "View" }),
+          e("a", { href: s.dataUrl, download: s.fileName, style: { textDecoration: "none" } }, e(Btn, { small: true, kind: "ghost", label: "Download" })),
+          isAdmin ? e(Btn, { small: true, kind: "danger", onClick: function () { remove(s); }, label: "Remove" }) : null);
+      }) : e("div", { style: { fontSize: 13, color: C.mute } }, isAdmin ? "No SOPs yet — upload the first one above." : "No SOPs published yet. Check back soon."),
+      viewing ? e(Modal, { title: viewing.title, onClose: function () { setViewing(null); }, width: 900 },
+        e("iframe", { src: viewing.dataUrl, style: { width: "100%", height: "70vh", border: "1px solid " + C.line, borderRadius: 8, background: "#fff" }, title: viewing.title }),
+        e("div", { style: { fontSize: 12, color: C.mute, marginTop: 8 } }, "If the preview does not load in your browser, use the Download button instead.")) : null));
+}
+
+// ================= FEEDBACK / BUG REPORTS =================
+function Feedback(p) {
+  const db = p.db, user = p.user;
+  const [kind, setKind] = useState("Feedback");
+  const [text, setText] = useState("");
+  const [sent, setSent] = useState(false);
+  function send() {
+    const t = text.trim(); if (!t) return;
+    db.feedback.unshift({ id: uid(), kind: kind, text: t, by: user.name, role: user.role, at: Date.now() });
+    logAct(db, user.name, user.role, user.name + " submitted " + kind.toLowerCase());
+    saveDB(db, ["feedback", "activity"]);
+    setText(""); setSent(true); setTimeout(function () { setSent(false); }, 2500);
+    p.refresh();
+  }
+  return e("div", null,
+    e(Card, { style: { marginBottom: 16 } },
+      e(SectionTitle, { title: "Send feedback or report a bug" }),
+      e("div", { style: { display: "flex", gap: 12, flexWrap: "wrap" } },
+        e("div", { style: { flex: "0 0 160px" } }, e(Field, { label: "Type" }, e(Sel, { value: kind, onChange: function (ev) { setKind(ev.target.value); }, options: ["Feedback", "Bug report"] }))),
+        e("div", { style: { flex: "1 1 260px" } }, e(Field, { label: "Details" }, e("textarea", { style: Object.assign({}, INPUT_S, { minHeight: 70, resize: "vertical" }), value: text, onChange: function (ev) { setText(ev.target.value); } })))),
+      e(Btn, { kind: "accent", onClick: send, label: "Submit" }),
+      sent ? e("span", { style: { marginLeft: 12, color: C.green, fontWeight: 700, fontSize: 13 } }, "Submitted ✓") : null),
+    user.role === "admin" ? e(Card, null,
+      e(SectionTitle, { title: "All submissions (" + db.feedback.length + ")" }),
+      db.feedback.length ? db.feedback.map(function (f) {
+        return e("div", { key: f.id, style: { padding: "10px 0", borderBottom: "1px solid " + C.canvas } },
+          e("div", { style: { display: "flex", gap: 8, alignItems: "center", marginBottom: 4 } },
+            e(Pill, { text: f.kind, tone: f.kind === "Bug report" ? "p-late" : "p-done" }),
+            e("b", { style: { fontSize: 13 } }, f.by + " (" + f.role + ")"),
+            e("span", { style: { fontSize: 11, color: C.mute } }, fmtDT(f.at))),
+          e("div", { style: { fontSize: 13, whiteSpace: "pre-wrap" } }, f.text));
+      }) : e("div", { style: { fontSize: 13, color: C.mute } }, "Nothing submitted yet.")) : null);
+}
+
+// ================= DATA (admin backup/restore/export) =================
+function DataTools(p) {
+  const db = p.db;
+  const [msg, setMsg] = useState("");
+  const restoreRef = useRef(null);
+  function download(name, mime, content) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([content], { type: mime }));
+    a.download = name; a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+  }
+  function backup() {
+    const all = loadDB();
+    download("jugmug-service-desk-backup-" + new Date().toISOString().slice(0, 10) + ".json", "application/json", JSON.stringify(all, null, 2));
+  }
+  function restore() {
+    const f = restoreRef.current && restoreRef.current.files && restoreRef.current.files[0];
+    if (!f) { setMsg("Choose a backup .json file first."); return; }
+    const r = new FileReader();
+    r.onload = function () {
+      try {
+        const d = JSON.parse(r.result);
+        const db2 = loadDB();
+        ["admin", "staff", "customers", "complaints", "activity", "feedback", "sops"].forEach(function (k) { if (d[k] !== undefined) db2[k] = d[k]; });
+        saveDB(db2);
+        setMsg("Backup restored ✓ — syncing to server.");
+        p.refresh();
+      } catch (err) { setMsg("That file is not a valid backup."); }
+    };
+    r.readAsText(f);
+  }
+  function exportCsv() {
+    const live = loadDB();
+    const rows = [["ID", "Type", "Customer", "Company", "Machine", "Status", "Priority", "Progress %", "Assigned to", "Target date", "Delay days", "Rating", "Created", "Closed"]];
+    live.complaints.forEach(function (c) {
+      const cu = live.customers.find(function (x) { return x.id === c.customerId; });
+      const co = cu && (cu.companies || []).find(function (x) { return x.id === c.companyId; });
+      const m = co && (co.machines || []).find(function (x) { return x.id === c.machineId; });
+      rows.push([c.id, c.type, cu ? cu.name : c.customerId, co ? co.name : "", m ? m.code : "", c.status, c.priority, routeProgress(c), c.assignedTo ? staffName(live, c.assignedTo) : "", c.targetDate || "", c.targetDate ? delayDays(c) : "", c.rating ? c.rating.stars : "", fmtDate(c.createdAt), c.closedAt ? fmtDate(c.closedAt) : ""]);
+    });
+    download("jugmug-complaints-" + new Date().toISOString().slice(0, 10) + ".csv", "text/csv",
+      rows.map(function (r) { return r.map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(","); }).join("\n"));
+  }
+  const used = Store.usage();
+  return e("div", null,
+    e(Card, { style: { marginBottom: 16 } },
+      e(SectionTitle, { title: "Backup & restore" }),
+      e("div", { style: { display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" } },
+        e(Btn, { onClick: backup, label: "Download full backup (JSON)" }),
+        e(Btn, { kind: "ghost", onClick: exportCsv, label: "Export complaints (CSV)" })),
+      e("div", { style: { marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" } },
+        e("input", { style: Object.assign({}, INPUT_S, { maxWidth: 300 }), type: "file", accept: ".json,application/json", ref: restoreRef }),
+        e(Btn, { kind: "danger", onClick: restore, label: "Restore from backup" })),
+      msg ? e("div", { style: { marginTop: 10, fontSize: 13, fontWeight: 600, color: msg.includes("✓") ? C.green : C.red } }, msg) : null,
+      e("div", { style: { marginTop: 12, fontSize: 12, color: C.mute } }, "Data is stored live on the JUGMUG cloud (Supabase) and shared across all devices. Browser storage used locally: " + fileSizeStr(used) + ".")));
+}
+
+// ================= CUSTOMER: NEW COMPLAINT =================
+function NewComplaint(p) {
+  const db = p.db, user = p.user;
+  const cu = db.customers.find(function (x) { return x.id === user.id; });
+  const companies = (cu && cu.companies) || [];
+  const [coId, setCoId] = useState(companies.length ? companies[0].id : "");
+  const co = companies.find(function (x) { return x.id === coId; });
+  const machines = (co && co.machines) || [];
+  const [mId, setMId] = useState("");
+  const [type, setType] = useState(BREAKDOWN_TYPES[0]);
+  const [priority, setPriority] = useState("Medium");
+  const [desc, setDesc] = useState("");
+  const [made, setMade] = useState(null);
+  useEffect(function () { setMId(machines.length ? machines[0].id : ""); }, [coId]);
+
+  function submit() {
+    if (!desc.trim() || !coId || !mId) return;
+    const c = {
+      id: complaintId(), customerId: user.id, companyId: coId, machineId: mId,
+      type: type, priority: priority, desc: desc.trim(), status: "Open",
+      route: newRoute(), messages: [], notes: [], assignedTo: null, assignedAt: null,
+      targetDate: null, rating: null, createdAt: Date.now(), closedAt: null
+    };
+    db.complaints.unshift(c);
+    logAct(db, user.name, "customer", user.name + " raised complaint " + c.id + " (" + type + ")");
+    saveDB(db, ["complaints", "activity"]);
+    setMade(c.id); setDesc("");
+    p.refresh();
+  }
+  if (!companies.length) return e(Card, null, e("div", { style: { fontSize: 14, color: C.mute } }, "No plants or machines are registered on your account yet. Please contact the JUGMUG sales service team."));
+  return e(Card, null,
+    e(SectionTitle, { title: "Raise a new complaint" }),
+    e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 } },
+      e(Field, { label: "Company / plant" }, e("select", { style: INPUT_S, value: coId, onChange: function (ev) { setCoId(ev.target.value); } },
+        companies.map(function (x) { return e("option", { key: x.id, value: x.id }, x.name); }))),
+      e(Field, { label: "Machine" }, e("select", { style: INPUT_S, value: mId, onChange: function (ev) { setMId(ev.target.value); } },
+        machines.map(function (m) { return e("option", { key: m.id, value: m.id }, m.code + (m.model ? " — " + m.model : "")); }))),
+      e(Field, { label: "Breakdown type" }, e(Sel, { value: type, onChange: function (ev) { setType(ev.target.value); }, options: BREAKDOWN_TYPES })),
+      e(Field, { label: "Priority" }, e(Sel, { value: priority, onChange: function (ev) { setPriority(ev.target.value); }, options: PRIORITIES }))),
+    e(Field, { label: "Describe the problem" }, e("textarea", { style: Object.assign({}, INPUT_S, { minHeight: 90, resize: "vertical" }), value: desc, onChange: function (ev) { setDesc(ev.target.value); } })),
+    e(Btn, { kind: "accent", onClick: submit, label: "Submit complaint" }),
+    made ? e("div", { style: { marginTop: 12, padding: 12, background: C.greenBg, borderRadius: 8, fontSize: 14 } }, e("b", null, "Submitted! "), "Your complaint number is ", e("b", null, made), ". Track it under “My complaints”.") : null);
+}
+
+// ================= CUSTOMER: RATE CLOSED COMPLAINTS =================
+function RatePrompt(p) {
+  const db = p.db, user = p.user;
+  const pending = db.complaints.filter(function (c) { return c.customerId === user.id && c.status === "Closed" && !c.rating && c.assignedTo; });
+  const [stars, setStars] = useState(0);
+  const [comment, setComment] = useState("");
+  const [cur, setCur] = useState(pending.length ? pending[0].id : null);
+  if (!pending.length) return null;
+  const c = pending.find(function (x) { return x.id === cur; }) || pending[0];
+  function save() {
+    if (!stars) return;
+    c.rating = { stars: stars, comment: comment.trim(), staffId: c.assignedTo, at: Date.now() };
+    logAct(db, user.name, "customer", user.name + " rated " + c.id + " — " + stars + "★ for " + staffName(db, c.assignedTo));
+    saveDB(db, ["complaints", "activity"]);
+    setStars(0); setComment(""); setCur(null);
+    p.refresh();
+  }
+  return e(Card, { style: { marginBottom: 16, background: "#fffbea", borderColor: "#f2e2ad" } },
+    e(SectionTitle, { title: "How was our service? (" + pending.length + " closed complaint" + (pending.length === 1 ? "" : "s") + " to rate)" }),
+    pending.length > 1 ? e(Field, { label: "Complaint" }, e("select", { style: INPUT_S, value: c.id, onChange: function (ev) { setCur(ev.target.value); } },
+      pending.map(function (x) { return e("option", { key: x.id, value: x.id }, x.id + " · " + x.type); }))) : e("div", { style: { fontSize: 13, marginBottom: 10 } }, e("b", null, c.id), " · " + c.type + " · handled by " + staffName(db, c.assignedTo)),
+    e("div", { style: { marginBottom: 10 } }, e(Stars, { value: stars, onChange: setStars, size: 30 })),
+    e(Field, { label: "Comment (optional)" }, e("input", { style: INPUT_S, value: comment, onChange: function (ev) { setComment(ev.target.value); } })),
+    e(Btn, { kind: "accent", onClick: save, disabled: !stars, label: "Submit rating" }),
+    e("div", { style: { fontSize: 12, color: C.mute, marginTop: 8 } }, "Your rating goes to JUGMUG management and helps us measure our service team."));
+}
+
+// ================= APP SHELL =================
+function App() {
+  const stored = Store.get(K.session);
+  if (stored && stored.token && !SESSION) SESSION = stored;
+  const [user, setUser] = useState(stored && stored.user ? stored.user : null);
+  const [page, setPage] = useState("home");
+  const [rev, setRev] = useState(0);
+  const [openC, setOpenC] = useState(null);
+  const [selfPw, setSelfPw] = useState(false);
+  const [toastMsg, setToastMsg] = useState("");
+  const db = loadDB();
+
+  function refresh(withToast) {
+    setRev(function (x) { return x + 1; });
+    if (withToast) {
+      setToastMsg("Refreshed ✓"); setTimeout(function () { setToastMsg(""); }, 1800);
+      if (SESSION) apiCall("load").then(function (j) {
+        if (PENDING === 0) { adoptSnapshot(j.snapshot); setRev(function (x) { return x + 1; }); }
+      }, function () {});
+    }
+  }
+  function login(u) { setUser(u); setPage("home"); }
+  function logout() {
+    if (SESSION) apiCall("logout").then(function () {}, function () {});
+    SESSION = null; Store.set(K.session, null);
+    adoptSnapshot({});
+    setUser(null); setPage("home");
+  }
+  // On mount with a stored session: validate + pull fresh data. Then poll
+  // every 5s so all devices see live updates (like the die platform feed).
+  useEffect(function () {
+    if (!user || !SESSION || (typeof window !== "undefined" && window.__SD_NO_POLL)) return;
+    let dead = false;
+    function pull() {
+      apiCall("load").then(function (j) {
+        if (dead) return;
+        SYNC_ERR = "";
+        if (PENDING === 0) { adoptSnapshot(j.snapshot); setRev(function (x) { return x + 1; }); }
+      }).catch(function (err) {
+        if (dead) return;
+        if (err.code === "AUTH") { SESSION = null; Store.set(K.session, null); setUser(null); }
+        else SYNC_ERR = err.message || "Sync failed";
+      });
+    }
+    pull();
+    const t = setInterval(pull, 5000);
+    return function () { dead = true; clearInterval(t); };
+  }, [user && user.id]);
+  function saveOwnPassword(npw) {
+    if (user.role === "admin") { db.admin.password = npw; saveDB(db, ["admin"]); }
+    else if (user.role === "staff") { const s = db.staff.find(function (x) { return x.id === user.id; }); if (s) { s.password = npw; saveDB(db, ["staff"]); } }
+    else { const cu = db.customers.find(function (x) { return x.id === user.id; }); if (cu) { cu.password = npw; saveDB(db, ["customers"]); } }
+    logAct(db, user.name, user.role, user.name + " changed their password");
+    saveDB(db, ["activity"]);
+    setSelfPw(false); refresh();
+  }
+  if (!user) return e(Login, { onLogin: login });
+
+  const NAV = {
+    admin: [["home", "Dashboard"], ["complaints", "Complaints"], ["staff", "Staff Accounts"], ["customers", "Customer Accounts"], ["sops", "SOP Library"], ["feedback", "Feedback & Bugs"], ["data", "Data & Backup"]],
+    staff: [["home", "My Desk"], ["complaints", "Complaints"], ["customers", "Customer Accounts"], ["sops", "SOP Library"], ["feedback", "Feedback & Bugs"]],
+    customer: [["home", "My Complaints"], ["new", "New Complaint"], ["sops", "Maintenance SOPs"]]
+  }[user.role];
+
+  function renderBody() {
+    if (page === "sops") return e(SopLibrary, { db: db, user: user, refresh: refresh });
+    if (page === "feedback") return e(Feedback, { db: db, user: user, refresh: refresh });
+    if (user.role === "admin") {
+      if (page === "home") return e(AdminDashboard, { db: db });
+      if (page === "complaints") return e(TeamComplaints, { db: db, user: user, refresh: refresh, onOpen: setOpenC });
+      if (page === "staff") return e(StaffAccounts, { db: db, refresh: refresh });
+      if (page === "customers") return e(CustomerAccounts, { db: db, user: user, refresh: refresh });
+      if (page === "data") return e(DataTools, { db: db, refresh: refresh });
+    }
+    if (user.role === "staff") {
+      if (page === "home") return e(StaffDesk, { db: db, user: user, refresh: refresh, onOpen: setOpenC });
+      if (page === "complaints") return e(TeamComplaints, { db: db, user: user, refresh: refresh, onOpen: setOpenC });
+      if (page === "customers") return e(CustomerAccounts, { db: db, user: user, refresh: refresh });
+    }
+    if (user.role === "customer") {
+      if (page === "home") return e(CustomerHome, { db: db, user: user, refresh: refresh, onOpen: setOpenC });
+      if (page === "new") return e(NewComplaint, { db: db, user: user, refresh: refresh });
+    }
+    return null;
+  }
+  const NAV_ICON = { home: "▦", complaints: "⚐", staff: "◈", customers: "▣", sops: "≡", feedback: "✉", data: "⛁", "new": "+" };
+  const ROLE_LABEL = { admin: "Factory Admin", staff: "Sales Service", customer: "Customer" };
+  const PAGE_SUB = {
+    home: { admin: "Team performance, delays and complaint monitoring", staff: "Your assigned complaints and delivery targets", customer: "Track your machine complaints" },
+    complaints: { admin: "All complaints across customers", staff: "All complaints across customers" },
+    staff: { admin: "Create and manage sales service accounts" },
+    customers: { admin: "Create and manage customer accounts", staff: "Create and manage customer accounts" },
+    sops: { admin: "Upload and manage maintenance SOP PDFs", staff: "Maintenance SOP library (read-only)", customer: "Maintenance SOP library (read-only)" },
+    feedback: { admin: "Feedback and bug reports from the team", staff: "Send feedback or report a bug" },
+    data: { admin: "Backup, restore and export" },
+    "new": { customer: "Register a new machine complaint" }
+  };
+  const curNav = NAV.find(function (n) { return n[0] === page; }) || NAV[0];
+  return e("div", { className: "shell" },
+    e("aside", { className: "sidebar" },
+      e("div", { className: "brand" },
+        e("div", { className: "brand-mark" }, e("span", null)),
+        e("div", null,
+          e("h1", null, "JUGMUG Rollforming"),
+          e("p", null, "Service Desk"))),
+      NAV.map(function (n) {
+        return e("button", {
+          key: n[0], onClick: function () { setPage(n[0]); },
+          className: "nav-btn nav-item" + (page === n[0] ? " on" : "")
+        }, e("span", { className: "ico" }, NAV_ICON[n[0]] || "•"), n[1]);
+      }),
+      e("div", { className: "nav-sep" }),
+      e("button", { title: "Refresh data", "aria-label": "Refresh", className: "nav-btn", onClick: function () { refresh(true); } }, "⟳ Refresh"),
+      e("button", { className: "nav-btn", onClick: function () { setSelfPw(true); } }, e("span", { className: "ico" }, "∗"), "Change password"),
+      e("button", { className: "nav-btn", onClick: logout }, e("span", { className: "ico" }, "⏻"), "Sign out"),
+      e("div", { className: "who" },
+        e("b", null, user.name),
+        e("span", null, ROLE_LABEL[user.role] + " · " + user.id))),
+    e("main", null,
+      e("div", { className: "page-head" },
+        e("div", null,
+          e("h2", null, curNav[1]),
+          e("p", null, (PAGE_SUB[page] && PAGE_SUB[page][user.role]) || "JUGMUG Rollforming Service Desk")),
+        toastMsg ? e("span", { className: "toastline" }, toastMsg) : null),
+      renderBody(),
+      e("div", { style: { textAlign: "center", fontSize: 11, color: C.mute, padding: "22px 0 4px" } },
+        e(Corrugation, { color: C.line, h: 8 }),
+        e("div", { style: { marginTop: 8 } }, "JUGMUG Rollforming · Service Desk v" + APP_VERSION))),
+    openC ? e(ComplaintModal, { db: db, user: user, cid: openC, refresh: refresh, onClose: function () { setOpenC(null); } }) : null,
+    selfPw ? e(PasswordModal, { title: "Change your password", subtitle: "Set the password you want to use from now on.", onClose: function () { setSelfPw(false); }, onSave: saveOwnPassword }) : null);
+}
+
+// ================= TEAM COMPLAINTS PAGE =================
+function TeamComplaints(p) {
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState("");
+  const [sf, setSf] = useState("");
+  const list = applyFilters(p.db.complaints, q, status, sf, p.db);
+  return e("div", null,
+    e(FilterBar, { q: q, setQ: setQ, status: status, setStatus: setStatus, staffFilter: sf, setStaffFilter: setSf, db: p.db }),
+    e(Card, { style: { padding: 0, overflow: "hidden" } },
+      e(ComplaintTable, { db: p.db, list: list, team: true, onOpen: p.onOpen })));
+}
+
+// ================= STAFF DESK =================
+function StaffDesk(p) {
+  const db = p.db, user = p.user;
+  const mine = db.complaints.filter(function (c) { return c.assignedTo === user.id; });
+  const open = mine.filter(function (c) { return c.status !== "Closed"; });
+  const delayed = open.filter(function (c) { return c.targetDate && delayDays(c) > 0; });
+  const dueSoon = open.filter(function (c) { return c.targetDate && delayDays(c) === 0; });
+  return e("div", null,
+    e("div", { style: { display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 } },
+      e(StatCard, { label: "Assigned to me", value: mine.length }),
+      e(StatCard, { label: "Open", value: open.length, color: C.blue }),
+      e(StatCard, { label: "Delayed vs target", value: delayed.length, color: delayed.length ? C.red : C.green }),
+      e(StatCard, { label: "Closed by me", value: mine.length - open.length, color: C.green })),
+    delayed.length ? e(Card, { style: { marginBottom: 16, borderColor: "#f0b6b0", background: C.redBg } },
+      e(SectionTitle, { title: "⚠ Delayed — action needed" }),
+      delayed.map(function (c) {
+        return e("div", { key: c.id, onClick: function () { p.onOpen(c.id); }, style: { fontSize: 13, padding: "6px 0", cursor: "pointer" } },
+          e("b", null, c.id), " · " + c.type + " · target " + fmtDate(new Date(c.targetDate + "T00:00:00").getTime()) + " · ",
+          e("b", { style: { color: C.red } }, delayDays(c) + " day(s) late"));
+      })) : null,
+    e(Card, { style: { padding: 0, overflow: "hidden" } },
+      e("div", { style: { padding: "14px 16px 0" } }, e(SectionTitle, { title: "My assigned complaints" })),
+      e(ComplaintTable, { db: db, list: mine, team: true, onOpen: p.onOpen })));
+}
+
+// ================= CUSTOMER HOME =================
+function CustomerHome(p) {
+  const db = p.db, user = p.user;
+  const mine = db.complaints.filter(function (c) { return c.customerId === user.id; });
+  return e("div", null,
+    e(RatePrompt, { db: db, user: user, refresh: p.refresh }),
+    e("div", { style: { display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 } },
+      e(StatCard, { label: "My complaints", value: mine.length }),
+      e(StatCard, { label: "Open", value: mine.filter(function (c) { return c.status !== "Closed"; }).length, color: C.blue }),
+      e(StatCard, { label: "Closed", value: mine.filter(function (c) { return c.status === "Closed"; }).length, color: C.green })),
+    e(Card, { style: { padding: 0, overflow: "hidden" } },
+      e(ComplaintTable, { db: db, list: mine, team: false, onOpen: p.onOpen })));
+}
+
+// ================= MOUNT =================
+const rootEl = document.getElementById("root");
+ReactDOM.createRoot(rootEl).render(e(App));
+} catch (err) {
+  document.getElementById("root").innerHTML = "<div style='padding:24px;font-family:sans-serif;color:#c0362c'>The app failed to start: " + (err && err.message ? err.message : String(err)) + "</div>";
+}
+</script>
+</body>
+</html>
