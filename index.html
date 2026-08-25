@@ -125,7 +125,7 @@ const { useState, useEffect, useRef } = React;
 const e = React.createElement;
 
 // ================= CONFIG =================
-const APP_VERSION = "8.0.0";
+const APP_VERSION = "9.0.1";
 const PRIORITIES = ["Low", "Medium", "High", "Critical"];
 const STATUSES = ["Open", "In Progress", "Resolved", "Closed"];
 const ROUTE_STAGES = [
@@ -183,7 +183,7 @@ const K = {
 const API_URL = (typeof window !== "undefined" && window.__SD_API_URL) ||
   "https://nppfrpqlipihrfvzeegx.supabase.co/functions/v1/service-desk";
 
-function emptyDB() { return { admin: { password: "" }, staff: [], customers: [], complaints: [], activity: [], feedback: [], sops: [] }; }
+function emptyDB() { return { admin: { password: "" }, branding: null, staff: [], customers: [], complaints: [], activity: [], feedback: [], sops: [] }; }
 function deepCopy(o) { return JSON.parse(JSON.stringify(o)); }
 
 let CACHE = emptyDB();               // client working copy (source for loadDB)
@@ -205,6 +205,7 @@ function adoptSnapshot(snap) {
   const base = emptyDB();
   ["staff", "customers", "complaints", "activity", "feedback", "sops"].forEach(function (k) { if (snap[k]) base[k] = snap[k]; });
   if (snap.admin) base.admin = snap.admin;
+  if (snap.branding) { base.branding = snap.branding; applyBrand(snap.branding); Store.set("jm8_brand", normBrand(snap.branding)); }
   CACHE = base;
   SNAP = deepCopy(CACHE);
 }
@@ -212,11 +213,16 @@ function adoptSnapshot(snap) {
 function loadDB() { return deepCopy(CACHE); }
 
 function saveDB(db, keys) {
-  const names = (keys || ["admin", "staff", "customers", "complaints", "activity", "feedback", "sops"])
+  const names = (keys || ["admin", "branding", "staff", "customers", "complaints", "activity", "feedback", "sops"])
     .filter(function (n) { return n !== "session" && n !== "seq"; });
   const puts = [], dels = [];
   names.forEach(function (name) {
     if (db[name] === undefined) return;
+    if (name === "branding") {
+      if (db.branding && JSON.stringify(db.branding) !== JSON.stringify(SNAP.branding)) puts.push({ entity: "meta", id: "branding", data: db.branding });
+      CACHE.branding = deepCopy(db.branding); SNAP.branding = deepCopy(db.branding);
+      return;
+    }
     if (name === "admin") {
       if (JSON.stringify(db.admin) !== JSON.stringify(SNAP.admin)) puts.push({ entity: "meta", id: "admin", data: db.admin });
       CACHE.admin = deepCopy(db.admin); SNAP.admin = deepCopy(db.admin);
@@ -264,6 +270,136 @@ function uid() { return Math.random().toString(36).slice(2, 9) + Date.now().toSt
 function logAct(db, by, role, text) {
   db.activity.unshift({ id: uid(), at: Date.now(), by: by, role: role, text: text });
   if (db.activity.length > 400) db.activity.length = 400;
+}
+
+// ================= ATTACHMENTS (photos & videos on complaints) =================
+const MAX_VIDEO_BYTES = 8 * 1024 * 1024;   // ~15-20s phone clip
+const MAX_IMAGE_DIM = 1280;                 // photos auto-compressed client-side
+const ATTACH_ACCEPT = "image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime";
+function isVideoMime(m) { return String(m || "").indexOf("video/") === 0; }
+function fileToDataUrl(file) {
+  return new Promise(function (res, rej) {
+    const r = new FileReader();
+    r.onload = function () { res(r.result); };
+    r.onerror = function () { rej(new Error("Could not read file")); };
+    r.readAsDataURL(file);
+  });
+}
+function compressImage(file) {
+  return fileToDataUrl(file).then(function (durl) {
+    return new Promise(function (res) {
+      const img = new Image();
+      img.onload = function () {
+        try {
+          let w = img.width, h = img.height;
+          const scale = Math.min(1, MAX_IMAGE_DIM / Math.max(w, h));
+          w = Math.round(w * scale); h = Math.round(h * scale);
+          const cv = document.createElement("canvas");
+          cv.width = w; cv.height = h;
+          cv.getContext("2d").drawImage(img, 0, 0, w, h);
+          res({ dataUrl: cv.toDataURL("image/jpeg", 0.8), mime: "image/jpeg" });
+        } catch (e2) { res({ dataUrl: durl, mime: file.type }); }
+      };
+      img.onerror = function () { res({ dataUrl: durl, mime: file.type }); };
+      img.src = durl;
+    });
+  });
+}
+// Prepares one attachment: {name, mime, b64} or throws with a friendly message
+function prepareAttachment(file) {
+  if (isVideoMime(file.type)) {
+    if (file.size > MAX_VIDEO_BYTES) return Promise.reject(new Error(file.name + " is too large. Videos must be under 8 MB (about 15-20 seconds)."));
+    return fileToDataUrl(file).then(function (durl) {
+      return { name: file.name, mime: file.type, b64: durl.split(",")[1] };
+    });
+  }
+  if (String(file.type).indexOf("image/") === 0) {
+    return compressImage(file).then(function (r) {
+      return { name: file.name.replace(/\.[a-zA-Z0-9]+$/, "") + ".jpg", mime: r.mime, b64: r.dataUrl.split(",")[1] };
+    });
+  }
+  return Promise.reject(new Error(file.name + ": only photos (JPG/PNG/WebP) and videos (MP4/WebM) are allowed."));
+}
+function uploadAttachment(complaintId, att) {
+  return apiCall("upload", { complaintId: complaintId, name: att.name, mime: att.mime, b64: att.b64 })
+    .then(function (j) { return j.file; });
+}
+function AttachmentList(p) {
+  const files = p.files || [];
+  if (!files.length) return null;
+  return e("div", { style: { display: "flex", flexWrap: "wrap", gap: 10, marginTop: 8 } },
+    files.map(function (f) {
+      return e("div", { key: f.id, style: { border: "1px solid " + C.line, borderRadius: 10, padding: 6, background: "#fff", maxWidth: 220 } },
+        isVideoMime(f.mime)
+          ? e("video", { src: f.url, controls: true, preload: "metadata", style: { width: 200, maxHeight: 150, borderRadius: 6, background: "#000" } })
+          : e("a", { href: f.url, target: "_blank", rel: "noopener" },
+              e("img", { src: f.url, alt: f.name, style: { width: 200, height: 130, objectFit: "cover", borderRadius: 6 } })),
+        e("div", { style: { display: "flex", alignItems: "center", gap: 6, marginTop: 4 } },
+          e("span", { style: { fontSize: 10.5, color: C.mute, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 } }, f.name + " · " + fileSizeStr(f.size || 0)),
+          p.onRemove ? e("button", { onClick: function () { p.onRemove(f); }, title: "Remove", style: { color: C.red, fontSize: 12, fontWeight: 700 } }, "✕") : null));
+    }));
+}
+// Attach picker + upload runner used in NewComplaint and ComplaintModal
+function AttachControl(p) {
+  const ref = useRef(null);
+  const [busyMsg, setBusyMsg] = useState("");
+  const [errMsg, setErrMsg] = useState("");
+  function pick() { if (ref.current) ref.current.click(); }
+  function onFiles(ev) {
+    const list = Array.from(ev.target.files || []);
+    ev.target.value = "";
+    if (!list.length) return;
+    setErrMsg("");
+    let chain = Promise.resolve();
+    list.forEach(function (file, i) {
+      chain = chain.then(function () {
+        setBusyMsg("Uploading " + (i + 1) + " of " + list.length + "…");
+        return prepareAttachment(file).then(function (att) { return p.doUpload(att); });
+      }).catch(function (e2) { setErrMsg(String(e2.message || e2)); });
+    });
+    chain.then(function () { setBusyMsg(""); if (p.onDone) p.onDone(); });
+  }
+  return e("div", null,
+    e("input", { ref: ref, type: "file", accept: ATTACH_ACCEPT, multiple: true, style: { display: "none" }, onChange: onFiles }),
+    e("div", { style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
+      e(Btn, { kind: "ghost", onClick: pick, disabled: !!busyMsg, label: busyMsg || "+ Add photo / video" }),
+      e("span", { style: { fontSize: 11, color: C.mute } }, "Photos auto-compressed · videos up to 8 MB")),
+    errMsg ? e("div", { style: { color: C.red, fontSize: 12, marginTop: 6, fontWeight: 600 } }, errMsg) : null);
+}
+
+// ================= BRANDING (admin-set, applies for every user) =================
+const DEFAULT_BRAND = { company: "JUGMUG Rollforming", short: "JUGMUG Rollforming", tagline: "Service Desk", sidebar: "#16212f", accent: "#0e7490", logo: null };
+const BRAND_PRESETS = [
+  ["Steel & teal", "#16212f", "#0e7490"],
+  ["Ink & orange", "#1a1c22", "#c2410c"],
+  ["Navy & sky", "#14243a", "#0369a1"],
+  ["Charcoal & green", "#1f2937", "#047857"],
+  ["Maroon & gold", "#3b1f24", "#b45309"]
+];
+let BRAND = Object.assign({}, DEFAULT_BRAND);
+function normBrand(b) {
+  const o = Object.assign({}, DEFAULT_BRAND);
+  if (b && typeof b === "object") ["company", "short", "tagline", "sidebar", "accent", "logo"].forEach(function (k) { if (b[k]) o[k] = b[k]; });
+  return o;
+}
+function applyBrand(b) {
+  BRAND = normBrand(b);
+  try {
+    const r = document.documentElement.style;
+    r.setProperty("--steel", BRAND.sidebar);
+    r.setProperty("--accent", BRAND.accent);
+    document.title = BRAND.company + " \u00b7 Service Desk";
+  } catch (e2) {}
+}
+function BrandBlock(p) {
+  const b = p.brand || BRAND;
+  return e("div", { className: "brand" },
+    b.logo
+      ? e("img", { src: b.logo, alt: "", style: { width: p.size || 34, height: p.size || 34, borderRadius: 8, objectFit: "cover", flex: "none", background: "#fff" } })
+      : e("div", { className: "brand-mark" }, e("span", null)),
+    e("div", null,
+      e("h1", null, p.long ? b.company : b.short),
+      e("p", null, b.tagline)));
 }
 
 // ================= GENERIC HELPERS =================
@@ -452,13 +588,17 @@ function Login(p) {
       className: "seg" + (cur === key ? " on" : "")
     }, label);
   };
+  const [brandRev, setBrandRev] = useState(0);
+  useEffect(function () {
+    const cached = Store.get("jm8_brand");
+    if (cached) { applyBrand(cached); setBrandRev(function (x) { return x + 1; }); }
+    apiCall("branding").then(function (j) {
+      if (j.branding) { applyBrand(j.branding); Store.set("jm8_brand", normBrand(j.branding)); setBrandRev(function (x) { return x + 1; }); }
+    }, function () {});
+  }, []);
   return e("div", { className: "login-wrap" },
     e("div", { className: "login-card" },
-      e("div", { className: "brand" },
-        e("div", { className: "brand-mark" }, e("span", null)),
-        e("div", null,
-          e("h1", null, "JUGMUG Rollforming"),
-          e("p", null, "Service Desk"))),
+      e(BrandBlock, { long: true, size: 40 }),
       e("h2", null, "Sign in"),
       e("div", { className: "sub" }, "Machine complaints · service tracking · SOPs"),
       e("div", { className: "segs" },
@@ -564,6 +704,37 @@ function ComplaintModal(p) {
         e("div", null, e("b", null, "Assigned to: "), c.assignedTo ? staffName(db, c.assignedTo) : "Unassigned"),
         isTeam ? e("div", null, e("b", null, "Delivery target: "), c.targetDate ? fmtDate(new Date(c.targetDate + "T00:00:00").getTime()) : "Not set") : null),
       e("div", { style: { marginTop: 10, fontSize: 14, color: C.text, whiteSpace: "pre-wrap" } }, c.desc)),
+
+    e(Card, { style: { marginBottom: 14 } },
+      e(SectionTitle, { title: "Photos & videos" + ((c.attachments || []).length ? " (" + c.attachments.length + ")" : "") }),
+      e(AttachmentList, {
+        files: c.attachments || [],
+        onRemove: user.role === "admin" ? function (f) {
+          const db2 = loadDB();
+          const row = db2.complaints.find(function (x) { return x.id === c.id; });
+          if (!row) return;
+          row.attachments = (row.attachments || []).filter(function (x) { return x.id !== f.id; });
+          logAct(db2, user.name, user.role, user.name + " removed a file from " + c.id);
+          saveDB(db2, ["complaints", "activity"]);
+          apiCall("deleteFile", { path: f.path }).then(function () {}, function () {});
+          p.refresh();
+        } : null
+      }),
+      (user.role !== "customer" || c.customerId === user.id) ? e("div", { style: { marginTop: (c.attachments || []).length ? 10 : 0 } },
+        e(AttachControl, {
+          doUpload: function (att) {
+            return uploadAttachment(c.id, att).then(function (f) {
+              const db2 = loadDB();
+              const row = db2.complaints.find(function (x) { return x.id === c.id; });
+              if (row) {
+                row.attachments = (row.attachments || []).concat([f]);
+                logAct(db2, user.name, user.role, user.name + " added " + (isVideoMime(f.mime) ? "a video" : "a photo") + " to " + c.id);
+                saveDB(db2, ["complaints", "activity"]);
+              }
+            });
+          },
+          onDone: function () { p.refresh(); }
+        })) : null),
 
     isTeam && user.role === "admin" ? e(Card, { style: { marginBottom: 14, background: C.purpleBg, borderColor: "#d9c9f5" } },
       e(SectionTitle, { title: "Assignment & delivery target (admin)" }),
@@ -832,9 +1003,13 @@ function StaffAccounts(p) {
         subtitle: "Set the desired password for this staff member.",
         onClose: function () { setPwFor(null); },
         onSave: function (npw) {
-          pwFor.password = npw;
-          logAct(db, "Admin", "admin", "Admin reset password for staff " + pwFor.id);
-          saveDB(db, ["staff", "activity"]);
+          const db2 = loadDB();
+          const row = db2.staff.find(function (x) { return x.id === pwFor.id; });
+          if (row) {
+            row.password = npw;
+            logAct(db2, "Admin", "admin", "Admin reset password for staff " + pwFor.id);
+            saveDB(db2, ["staff", "activity"]);
+          }
           setPwFor(null); p.refresh();
         }
       }) : null));
@@ -907,9 +1082,13 @@ function CustomerAccounts(p) {
         subtitle: "Set the desired password for this customer.",
         onClose: function () { setPwFor(null); },
         onSave: function (npw) {
-          pwFor.password = npw;
-          logAct(db, user.name, user.role, user.name + " reset password for customer " + pwFor.id);
-          saveDB(db, ["customers", "activity"]);
+          const db2 = loadDB();
+          const row = db2.customers.find(function (x) { return x.id === pwFor.id; });
+          if (row) {
+            row.password = npw;
+            logAct(db2, user.name, user.role, user.name + " reset password for customer " + pwFor.id);
+            saveDB(db2, ["customers", "activity"]);
+          }
           setPwFor(null); p.refresh();
         }
       }) : null));
@@ -1080,21 +1259,42 @@ function NewComplaint(p) {
   const [priority, setPriority] = useState("Medium");
   const [desc, setDesc] = useState("");
   const [made, setMade] = useState(null);
+  const [pending, setPending] = useState([]);   // prepared attachments waiting for submit
+  const [submitting, setSubmitting] = useState(false);
   useEffect(function () { setMId(machines.length ? machines[0].id : ""); }, [coId]);
 
   function submit() {
-    if (!desc.trim() || !coId || !mId) return;
+    if (!desc.trim() || !coId || !mId || submitting) return;
+    setSubmitting(true);
     const c = {
       id: complaintId(), customerId: user.id, companyId: coId, machineId: mId,
       type: type, priority: priority, desc: desc.trim(), status: "Open",
-      route: newRoute(), messages: [], notes: [], assignedTo: null, assignedAt: null,
+      route: newRoute(), messages: [], notes: [], attachments: [], assignedTo: null, assignedAt: null,
       targetDate: null, rating: null, createdAt: Date.now(), closedAt: null
     };
     db.complaints.unshift(c);
     logAct(db, user.name, "customer", user.name + " raised complaint " + c.id + " (" + type + ")");
     saveDB(db, ["complaints", "activity"]);
-    setMade(c.id); setDesc("");
-    p.refresh();
+    const files = pending.slice();
+    if (!files.length) {
+      setSubmitting(false); setMade(c.id); setDesc(""); setPending([]);
+      p.refresh();
+      return;
+    }
+    let chain = Promise.resolve();
+    files.forEach(function (att) {
+      chain = chain.then(function () {
+        return uploadAttachment(c.id, att).then(function (f) {
+          const db2 = loadDB();
+          const row = db2.complaints.find(function (x) { return x.id === c.id; });
+          if (row) { row.attachments = (row.attachments || []).concat([f]); saveDB(db2, ["complaints"]); }
+        });
+      }).catch(function () {});
+    });
+    chain.then(function () {
+      setSubmitting(false); setMade(c.id); setDesc(""); setPending([]);
+      p.refresh();
+    });
   }
   if (!companies.length) return e(Card, null, e("div", { style: { fontSize: 14, color: C.mute } }, "No plants or machines are registered on your account yet. Please contact the JUGMUG sales service team."));
   return e(Card, null,
@@ -1107,7 +1307,11 @@ function NewComplaint(p) {
       e(Field, { label: "Breakdown type" }, e(Sel, { value: type, onChange: function (ev) { setType(ev.target.value); }, options: BREAKDOWN_TYPES })),
       e(Field, { label: "Priority" }, e(Sel, { value: priority, onChange: function (ev) { setPriority(ev.target.value); }, options: PRIORITIES }))),
     e(Field, { label: "Describe the problem" }, e("textarea", { style: Object.assign({}, INPUT_S, { minHeight: 90, resize: "vertical" }), value: desc, onChange: function (ev) { setDesc(ev.target.value); } })),
-    e(Btn, { kind: "accent", onClick: submit, label: "Submit complaint" }),
+    e("div", { style: { marginBottom: 12 } },
+      e("div", { className: "eyebrow", style: { marginBottom: 6 } }, "Photos / videos of the problem (optional)"),
+      e(AttachControl, { doUpload: function (att) { setPending(function (ps) { return ps.concat([att]); }); return Promise.resolve(); } }),
+      pending.length ? e("div", { style: { fontSize: 12, color: C.green, fontWeight: 600, marginTop: 6 } }, pending.length + " file(s) attached — they upload when you submit") : null),
+    e(Btn, { kind: "accent", onClick: submit, disabled: submitting, label: submitting ? "Submitting…" : "Submit complaint" }),
     made ? e("div", { style: { marginTop: 12, padding: 12, background: C.greenBg, borderRadius: 8, fontSize: 14 } }, e("b", null, "Submitted! "), "Your complaint number is ", e("b", null, made), ". Track it under “My complaints”.") : null);
 }
 
@@ -1136,6 +1340,108 @@ function RatePrompt(p) {
     e(Field, { label: "Comment (optional)" }, e("input", { style: INPUT_S, value: comment, onChange: function (ev) { setComment(ev.target.value); } })),
     e(Btn, { kind: "accent", onClick: save, disabled: !stars, label: "Submit rating" }),
     e("div", { style: { fontSize: 12, color: C.mute, marginTop: 8 } }, "Your rating goes to JUGMUG management and helps us measure our service team."));
+}
+
+// ================= BRANDING PAGE (admin) =================
+function BrandingPage(p) {
+  const saved = normBrand(p.db.branding || BRAND);
+  const [company, setCompany] = useState(saved.company);
+  const [short, setShort] = useState(saved.short);
+  const [tagline, setTagline] = useState(saved.tagline);
+  const [sidebar, setSidebar] = useState(saved.sidebar);
+  const [accent, setAccent] = useState(saved.accent);
+  const [logo, setLogo] = useState(saved.logo);
+  const [msg, setMsg] = useState("");
+  const logoRef = useRef(null);
+  const draft = { company: company, short: short, tagline: tagline, sidebar: sidebar, accent: accent, logo: logo };
+
+  function onLogo(ev) {
+    const f = ev.target.files && ev.target.files[0];
+    ev.target.value = "";
+    if (!f) return;
+    if (f.size > 300 * 1024) { setMsg("Logo must be under 300 KB. Please use a smaller image."); return; }
+    if (String(f.type).indexOf("image/") !== 0 && f.type !== "image/svg+xml") { setMsg("Logo must be PNG, JPG, SVG or WebP."); return; }
+    fileToDataUrl(f).then(function (durl) { setLogo(durl); setMsg(""); });
+  }
+  function save() {
+    const db2 = loadDB();
+    db2.branding = normBrand(draft);
+    applyBrand(db2.branding);
+    Store.set("jm8_brand", db2.branding);
+    logAct(db2, p.user.name, "admin", "Branding updated");
+    saveDB(db2, ["branding", "activity"]);
+    setMsg("Branding saved ✓ — applied for every user on all devices.");
+    p.refresh();
+  }
+  function reset() {
+    setCompany(DEFAULT_BRAND.company); setShort(DEFAULT_BRAND.short); setTagline(DEFAULT_BRAND.tagline);
+    setSidebar(DEFAULT_BRAND.sidebar); setAccent(DEFAULT_BRAND.accent); setLogo(null);
+    setMsg("Reset to default — press Save branding to apply.");
+  }
+  function colorField(label, val, set) {
+    return e(Field, { label: label },
+      e("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
+        e("input", { type: "color", value: /^#[0-9a-fA-F]{6}$/.test(val) ? val : "#000000", onChange: function (ev) { set(ev.target.value); }, style: { width: 46, height: 38, padding: 2, border: "1px solid " + C.line, borderRadius: 8, background: "#fff" } }),
+        e("input", { style: Object.assign({}, INPUT_S, { width: 110, fontFamily: "var(--mono)" }), value: val, onChange: function (ev) { set(ev.target.value); } })));
+  }
+  return e("div", null,
+    e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 16 } },
+      e(Card, null,
+        e(SectionTitle, { title: "Identity" }),
+        e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 } },
+          e(Field, { label: "Company name" }, e("input", { style: INPUT_S, value: company, onChange: function (ev) { setCompany(ev.target.value); } })),
+          e(Field, { label: "Short name (sidebar)" }, e("input", { style: INPUT_S, value: short, onChange: function (ev) { setShort(ev.target.value); } }))),
+        e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12 } },
+          e(Field, { label: "Tagline" }, e("input", { style: INPUT_S, value: tagline, onChange: function (ev) { setTagline(ev.target.value); } })),
+          colorField("Sidebar colour", sidebar, setSidebar),
+          colorField("Accent colour (buttons, highlights)", accent, setAccent)),
+        e("div", { className: "eyebrow", style: { margin: "6px 0 8px" } }, "Logo"),
+        e("div", { style: { display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" } },
+          logo ? e("img", { src: logo, alt: "logo", style: { width: 56, height: 56, borderRadius: 10, objectFit: "cover", border: "1px solid " + C.line, background: "#fff" } })
+               : e("div", { className: "brand-mark", style: { width: 56, height: 56 } }, e("span", null)),
+          e("input", { ref: logoRef, type: "file", accept: "image/png,image/jpeg,image/webp,image/svg+xml", style: { display: "none" }, onChange: onLogo }),
+          e(Btn, { kind: "ghost", onClick: function () { if (logoRef.current) logoRef.current.click(); }, label: "Choose logo…" }),
+          logo ? e(Btn, { kind: "danger", onClick: function () { setLogo(null); }, label: "Remove" }) : null,
+          e("span", { style: { fontSize: 11, color: C.mute } }, "PNG, JPG, SVG or WebP · under 300 KB · square works best")),
+        e("div", { style: { marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" } },
+          e(Btn, { kind: "primary", onClick: save, label: "Save branding" }),
+          e(Btn, { kind: "ghost", onClick: reset, label: "Reset to default" })),
+        msg ? e("div", { style: { marginTop: 10, fontSize: 13, fontWeight: 600, color: msg.includes("✓") ? C.green : C.amber } }, msg) : null,
+        e("div", { style: { marginTop: 12, fontSize: 12, color: C.mute } }, "Branding is saved on the JUGMUG cloud and applies everywhere for every user — including the customer sign-in screen.")),
+      e(Card, null,
+        e(SectionTitle, { title: "Live preview" }),
+        e("div", { className: "eyebrow", style: { marginBottom: 8 } }, "Quick presets"),
+        e("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 } },
+          BRAND_PRESETS.map(function (pr) {
+            return e("button", { key: pr[0], onClick: function () { setSidebar(pr[1]); setAccent(pr[2]); }, style: { display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 12px", border: "1px solid " + C.line, borderRadius: 9, background: "#fff", fontSize: 12.5, fontWeight: 650 } },
+              e("span", { style: { width: 12, height: 12, borderRadius: 3, background: pr[1], display: "inline-block" } }),
+              e("span", { style: { width: 12, height: 12, borderRadius: 3, background: pr[2], display: "inline-block" } }),
+              pr[0]);
+          })),
+        e("div", { style: { border: "1px solid " + C.line, borderRadius: 12, overflow: "hidden", display: "grid", gridTemplateColumns: "150px 1fr", minHeight: 220 } },
+          e("div", { style: { background: sidebar, color: "#fff", padding: 12 } },
+            e("div", { style: { display: "flex", gap: 8, alignItems: "center", marginBottom: 12 } },
+              logo ? e("img", { src: logo, style: { width: 24, height: 24, borderRadius: 6, objectFit: "cover", background: "#fff" } })
+                   : e("span", { style: { width: 24, height: 24, borderRadius: 6, background: accent, display: "inline-block" } }),
+              e("div", null,
+                e("div", { style: { fontSize: 11, fontWeight: 800, lineHeight: 1.1 } }, short || "Short name"),
+                e("div", { style: { fontSize: 8, color: "#9fb0c3", textTransform: "uppercase", letterSpacing: ".08em" } }, tagline || "tagline"))),
+            e("div", { style: { background: accent, color: "#fff", borderRadius: 6, padding: "6px 8px", fontSize: 11, fontWeight: 650, marginBottom: 4 } }, "▦ Dashboard"),
+            e("div", { style: { color: "#a9b8c9", padding: "6px 8px", fontSize: 11 } }, "⚐ Complaints"),
+            e("div", { style: { color: "#a9b8c9", padding: "6px 8px", fontSize: 11 } }, "▣ Customers")),
+          e("div", { style: { background: "#eff3f7", display: "grid", placeItems: "center", padding: 14 } },
+            e("div", { style: { background: "#fff", borderRadius: 12, padding: 16, width: "100%", maxWidth: 230, boxShadow: "0 10px 24px rgba(0,0,0,.12)" } },
+              e("div", { style: { display: "flex", gap: 8, alignItems: "center", marginBottom: 8 } },
+                logo ? e("img", { src: logo, style: { width: 26, height: 26, borderRadius: 6, objectFit: "cover" } })
+                     : e("span", { style: { width: 26, height: 26, borderRadius: 6, background: sidebar, display: "inline-block" } }),
+                e("div", null,
+                  e("div", { style: { fontSize: 12, fontWeight: 800 } }, company || "Company"),
+                  e("div", { style: { fontSize: 8.5, color: C.mute, textTransform: "uppercase", letterSpacing: ".08em" } }, tagline || "tagline"))),
+              e("div", { style: { fontSize: 13, fontWeight: 700, margin: "8px 0 6px" } }, "Sign in"),
+              e("div", { style: { height: 26, border: "1px solid " + C.line, borderRadius: 7, marginBottom: 6 } }),
+              e("div", { style: { height: 26, border: "1px solid " + C.line, borderRadius: 7, marginBottom: 10 } }),
+              e("div", { style: { background: accent, color: "#fff", borderRadius: 7, textAlign: "center", fontSize: 12, fontWeight: 700, padding: "7px 0" } }, "Sign in")))),
+        e("div", { style: { marginTop: 10, fontSize: 12, color: C.mute } }, "How the sidebar and sign-in screen will look. The preview updates as you type."))));
 }
 
 // ================= APP SHELL =================
@@ -1187,17 +1493,18 @@ function App() {
     return function () { dead = true; clearInterval(t); };
   }, [user && user.id]);
   function saveOwnPassword(npw) {
-    if (user.role === "admin") { db.admin.password = npw; saveDB(db, ["admin"]); }
-    else if (user.role === "staff") { const s = db.staff.find(function (x) { return x.id === user.id; }); if (s) { s.password = npw; saveDB(db, ["staff"]); } }
-    else { const cu = db.customers.find(function (x) { return x.id === user.id; }); if (cu) { cu.password = npw; saveDB(db, ["customers"]); } }
-    logAct(db, user.name, user.role, user.name + " changed their password");
-    saveDB(db, ["activity"]);
+    const db2 = loadDB();
+    if (user.role === "admin") { db2.admin.password = npw; saveDB(db2, ["admin"]); }
+    else if (user.role === "staff") { const s = db2.staff.find(function (x) { return x.id === user.id; }); if (s) { s.password = npw; saveDB(db2, ["staff"]); } }
+    else { const cu = db2.customers.find(function (x) { return x.id === user.id; }); if (cu) { cu.password = npw; saveDB(db2, ["customers"]); } }
+    logAct(db2, user.name, user.role, user.name + " changed their password");
+    saveDB(db2, ["activity"]);
     setSelfPw(false); refresh();
   }
   if (!user) return e(Login, { onLogin: login });
 
   const NAV = {
-    admin: [["home", "Dashboard"], ["complaints", "Complaints"], ["staff", "Staff Accounts"], ["customers", "Customer Accounts"], ["sops", "SOP Library"], ["feedback", "Feedback & Bugs"], ["data", "Data & Backup"]],
+    admin: [["home", "Dashboard"], ["complaints", "Complaints"], ["staff", "Staff Accounts"], ["customers", "Customer Accounts"], ["sops", "SOP Library"], ["feedback", "Feedback & Bugs"], ["branding", "Branding"], ["data", "Data & Backup"]],
     staff: [["home", "My Desk"], ["complaints", "Complaints"], ["customers", "Customer Accounts"], ["sops", "SOP Library"], ["feedback", "Feedback & Bugs"]],
     customer: [["home", "My Complaints"], ["new", "New Complaint"], ["sops", "Maintenance SOPs"]]
   }[user.role];
@@ -1205,6 +1512,7 @@ function App() {
   function renderBody() {
     if (page === "sops") return e(SopLibrary, { db: db, user: user, refresh: refresh });
     if (page === "feedback") return e(Feedback, { db: db, user: user, refresh: refresh });
+    if (page === "branding" && user.role === "admin") return e(BrandingPage, { db: db, user: user, refresh: refresh });
     if (user.role === "admin") {
       if (page === "home") return e(AdminDashboard, { db: db });
       if (page === "complaints") return e(TeamComplaints, { db: db, user: user, refresh: refresh, onOpen: setOpenC });
@@ -1223,7 +1531,7 @@ function App() {
     }
     return null;
   }
-  const NAV_ICON = { home: "▦", complaints: "⚐", staff: "◈", customers: "▣", sops: "≡", feedback: "✉", data: "⛁", "new": "+" };
+  const NAV_ICON = { home: "▦", complaints: "⚐", staff: "◈", customers: "▣", sops: "≡", feedback: "✉", branding: "◆", data: "⛁", "new": "+" };
   const ROLE_LABEL = { admin: "Factory Admin", staff: "Sales Service", customer: "Customer" };
   const PAGE_SUB = {
     home: { admin: "Team performance, delays and complaint monitoring", staff: "Your assigned complaints and delivery targets", customer: "Track your machine complaints" },
@@ -1232,17 +1540,14 @@ function App() {
     customers: { admin: "Create and manage customer accounts", staff: "Create and manage customer accounts" },
     sops: { admin: "Upload and manage maintenance SOP PDFs", staff: "Maintenance SOP library (read-only)", customer: "Maintenance SOP library (read-only)" },
     feedback: { admin: "Feedback and bug reports from the team", staff: "Send feedback or report a bug" },
+    branding: { admin: "Logo and colours — applied everywhere, including the customer sign-in screen" },
     data: { admin: "Backup, restore and export" },
     "new": { customer: "Register a new machine complaint" }
   };
   const curNav = NAV.find(function (n) { return n[0] === page; }) || NAV[0];
   return e("div", { className: "shell" },
     e("aside", { className: "sidebar" },
-      e("div", { className: "brand" },
-        e("div", { className: "brand-mark" }, e("span", null)),
-        e("div", null,
-          e("h1", null, "JUGMUG Rollforming"),
-          e("p", null, "Service Desk"))),
+      e(BrandBlock, null),
       NAV.map(function (n) {
         return e("button", {
           key: n[0], onClick: function () { setPage(n[0]); },
@@ -1260,12 +1565,12 @@ function App() {
       e("div", { className: "page-head" },
         e("div", null,
           e("h2", null, curNav[1]),
-          e("p", null, (PAGE_SUB[page] && PAGE_SUB[page][user.role]) || "JUGMUG Rollforming Service Desk")),
+          e("p", null, (PAGE_SUB[page] && PAGE_SUB[page][user.role]) || (BRAND.company + " Service Desk"))),
         toastMsg ? e("span", { className: "toastline" }, toastMsg) : null),
       renderBody(),
       e("div", { style: { textAlign: "center", fontSize: 11, color: C.mute, padding: "22px 0 4px" } },
         e(Corrugation, { color: C.line, h: 8 }),
-        e("div", { style: { marginTop: 8 } }, "JUGMUG Rollforming · Service Desk v" + APP_VERSION))),
+        e("div", { style: { marginTop: 8 } }, BRAND.company + " · Service Desk v" + APP_VERSION))),
     openC ? e(ComplaintModal, { db: db, user: user, cid: openC, refresh: refresh, onClose: function () { setOpenC(null); } }) : null,
     selfPw ? e(PasswordModal, { title: "Change your password", subtitle: "Set the password you want to use from now on.", onClose: function () { setSelfPw(false); }, onSave: saveOwnPassword }) : null);
 }
@@ -1322,6 +1627,7 @@ function CustomerHome(p) {
 }
 
 // ================= MOUNT =================
+applyBrand(Store.get("jm8_brand") || DEFAULT_BRAND);
 const rootEl = document.getElementById("root");
 ReactDOM.createRoot(rootEl).render(e(App));
 } catch (err) {
