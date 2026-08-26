@@ -125,7 +125,7 @@ const { useState, useEffect, useRef } = React;
 const e = React.createElement;
 
 // ================= CONFIG =================
-const APP_VERSION = "9.0.1";
+const APP_VERSION = "9.1.0";
 const PRIORITIES = ["Low", "Medium", "High", "Critical"];
 const STATUSES = ["Open", "In Progress", "Resolved", "Closed"];
 const ROUTE_STAGES = [
@@ -240,11 +240,13 @@ function saveDB(db, keys) {
   });
   if (puts.length || dels.length) {
     PENDING++;
-    apiCall("save", { puts: puts, dels: dels })
+    const pr = apiCall("save", { puts: puts, dels: dels })
       .then(function () { SYNC_ERR = ""; })
       .catch(function (err) { SYNC_ERR = err.message || "Sync failed"; })
       .then(function () { PENDING--; });
+    return pr;
   }
+  return Promise.resolve();
 }
 
 // IDs are derived from the live shared snapshot (max existing number + 1)
@@ -642,6 +644,7 @@ function ComplaintModal(p) {
   const c = db.complaints.find(function (x) { return x.id === p.cid; });
   const [msg, setMsg] = useState("");
   const [note, setNote] = useState("");
+  const [confirmDel, setConfirmDel] = useState(false);
   if (!c) return null;
   const isTeam = user.role === "admin" || user.role === "staff";
   const cust = db.customers.find(function (x) { return x.id === c.customerId; });
@@ -796,7 +799,27 @@ function ComplaintModal(p) {
       }) : e("div", { style: { fontSize: 13, color: C.mute, marginBottom: 8 } }, "No notes."),
       e("div", { style: { display: "flex", gap: 8, marginTop: 8 } },
         e("input", { style: Object.assign({}, INPUT_S, { flex: 1 }), placeholder: "Add an internal note…", value: note, onChange: function (ev) { setNote(ev.target.value); } }),
-        e(Btn, { kind: "ghost", onClick: addNote, label: "Add note" }))) : null);
+        e(Btn, { kind: "ghost", onClick: addNote, label: "Add note" }))) : null,
+
+    user.role === "admin" ? e(Card, { style: { marginTop: 14, background: C.redBg, borderColor: "#f3c2cd" } },
+      e(SectionTitle, { title: "Danger zone (admin)" }),
+      !confirmDel
+        ? e("div", { style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
+            e(Btn, { kind: "danger", onClick: function () { setConfirmDel(true); }, label: "Delete this complaint" }),
+            e("span", { style: { fontSize: 12, color: C.mute } }, "Use for duplicate / repeated complaints. Photos and videos on it are deleted from storage too."))
+        : e("div", { style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
+            e("b", { style: { fontSize: 13, color: C.red } }, "Delete " + c.id + " permanently? This cannot be undone."),
+            e(Btn, { kind: "danger", onClick: function () {
+              const files = (c.attachments || []).slice();
+              files.forEach(function (f) { if (f.path) apiCall("deleteFile", { path: f.path }).then(function () {}, function () {}); });
+              const db2 = loadDB();
+              db2.complaints = db2.complaints.filter(function (x) { return x.id !== c.id; });
+              logAct(db2, user.name, "admin", "Admin deleted complaint " + c.id + (files.length ? " (+" + files.length + " file(s) cleared)" : ""));
+              saveDB(db2, ["complaints", "activity"]);
+              p.onClose();
+              p.refresh();
+            }, label: "Yes, delete permanently" }),
+            e(Btn, { kind: "ghost", onClick: function () { setConfirmDel(false); }, label: "Cancel" }))) : null);
 }
 
 // ================= COMPLAINT TABLE =================
@@ -932,6 +955,19 @@ function AdminDashboard(p) {
     e(Card, { style: { marginBottom: 16 } },
       e(SectionTitle, { title: "Team performance — delivery & ratings" }),
       e(TeamPerformance, { db: live, showRatings: true })),
+    ratings.length ? e(Card, { style: { marginBottom: 16 } },
+      e(SectionTitle, { title: "Customer ratings & comments (" + ratings.length + ")" }),
+      e("div", { style: { maxHeight: 300, overflowY: "auto" } },
+        ratings.slice().sort(function (a, b) { return (b.rating.at || 0) - (a.rating.at || 0); }).slice(0, 20).map(function (c) {
+          return e("div", { key: c.id, style: { padding: "10px 0", borderBottom: "1px solid " + C.canvas } },
+            e("div", { style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 3 } },
+              e(Stars, { value: c.rating.stars, size: 16 }),
+              e("b", { style: { fontSize: 13 } }, custName(live, c.customerId)),
+              e("span", { className: "pcode", style: { fontSize: 11 } }, c.id),
+              e("span", { style: { fontSize: 11, color: C.mute } }, "for " + staffName(live, c.rating.staffId) + " · " + fmtDT(c.rating.at))),
+            e("div", { style: { fontSize: 13, color: c.rating.comment ? C.text : C.mute, fontStyle: c.rating.comment ? "normal" : "italic" } },
+              c.rating.comment ? "“" + c.rating.comment + "”" : "No comment left"));
+        }))) : null,
     e(Card, null,
       e(SectionTitle, { title: "Live activity", right: e("span", { style: { fontSize: 11, color: C.green, fontWeight: 700 } }, "● auto-refreshing") }),
       e("div", { style: { maxHeight: 260, overflowY: "auto" } },
@@ -998,6 +1034,7 @@ function StaffAccounts(p) {
           e(Btn, { small: true, kind: "ghost", onClick: function () { setPwFor(s); }, label: "Reset password" }),
           e(Btn, { small: true, kind: s.active === false ? "primary" : "danger", onClick: function () { toggle(s); }, label: s.active === false ? "Enable" : "Disable" }));
       }) : e("div", { style: { fontSize: 13, color: C.mute } }, "No staff yet — create the first account above."),
+      editFor ? e(CustomerEditModal, { cid: editFor, user: user, onClose: function () { setEditFor(null); p.refresh(); } }) : null,
       pwFor ? e(PasswordModal, {
         title: "Reset password — " + pwFor.name + " (" + pwFor.id + ")",
         subtitle: "Set the desired password for this staff member.",
@@ -1024,6 +1061,7 @@ function CustomerAccounts(p) {
   const [cos, setCos] = useState([emptyCo()]);
   const [made, setMade] = useState(null);
   const [pwFor, setPwFor] = useState(null);
+  const [editFor, setEditFor] = useState(null);
 
   function upCo(i, k, v) { const n = cos.slice(); n[i] = Object.assign({}, n[i]); n[i][k] = v; setCos(n); }
   function upM(i, j, k, v) {
@@ -1075,8 +1113,10 @@ function CustomerAccounts(p) {
           e("b", { style: { minWidth: 76 } }, cu.id),
           e("span", { style: { flex: "1 1 160px" } }, cu.name),
           e("span", { style: { fontSize: 12, color: C.mute } }, (cu.companies || []).length + " plant(s) · " + mCount + " machine(s)"),
+          user.role === "admin" ? e(Btn, { small: true, onClick: function () { setEditFor(cu.id); }, label: "Edit" }) : null,
           e(Btn, { small: true, kind: "ghost", onClick: function () { setPwFor(cu); }, label: "Reset password" }));
       }) : e("div", { style: { fontSize: 13, color: C.mute } }, "No customers yet."),
+      editFor ? e(CustomerEditModal, { cid: editFor, user: user, onClose: function () { setEditFor(null); p.refresh(); } }) : null,
       pwFor ? e(PasswordModal, {
         title: "Reset password — " + pwFor.name + " (" + pwFor.id + ")",
         subtitle: "Set the desired password for this customer.",
@@ -1092,6 +1132,69 @@ function CustomerAccounts(p) {
           setPwFor(null); p.refresh();
         }
       }) : null));
+}
+
+// ================= CUSTOMER EDIT (admin) =================
+function CustomerEditModal(p) {
+  const src = loadDB().customers.find(function (x) { return x.id === p.cid; });
+  const [name, setName] = useState(src ? src.name : "");
+  const [cos, setCos] = useState(src ? deepCopy(src.companies || []) : []);
+  const [msg, setMsg] = useState("");
+  if (!src) return null;
+
+  function upCo(i, k, v) { const n = cos.slice(); n[i] = Object.assign({}, n[i]); n[i][k] = v; setCos(n); }
+  function upM(i, j, k, v) {
+    const n = cos.slice(); n[i] = Object.assign({}, n[i]);
+    n[i].machines = (n[i].machines || []).slice(); n[i].machines[j] = Object.assign({}, n[i].machines[j]); n[i].machines[j][k] = v; setCos(n);
+  }
+  function addMachine(i) {
+    const n = cos.slice(); n[i] = Object.assign({}, n[i]);
+    n[i].machines = (n[i].machines || []).concat([{ id: uid(), code: "", model: "" }]); setCos(n);
+  }
+  function addPlant() { setCos(cos.concat([{ id: uid(), name: "", address: "", machines: [{ id: uid(), code: "", model: "" }] }])); }
+  function save() {
+    const nn = name.trim();
+    if (!nn) { setMsg("Customer name cannot be empty."); return; }
+    const companies = cos.filter(function (co) { return String(co.name || "").trim(); }).map(function (co) {
+      return {
+        id: co.id, name: String(co.name).trim(), address: String(co.address || "").trim(),
+        machines: (co.machines || []).filter(function (m) { return String(m.code || "").trim(); }).map(function (m) {
+          return { id: m.id, code: String(m.code).trim(), model: String(m.model || "").trim() };
+        })
+      };
+    });
+    if (!companies.length) { setMsg("Keep at least one company / plant with a name."); return; }
+    const db2 = loadDB();
+    const row = db2.customers.find(function (x) { return x.id === p.cid; });
+    if (!row) { setMsg("This account was removed on another device."); return; }
+    row.name = nn;
+    row.companies = companies;
+    logAct(db2, p.user.name, "admin", "Admin updated customer " + p.cid + " (" + nn + ") — " + companies.length + " plant(s)");
+    saveDB(db2, ["customers", "activity"]);
+    p.onClose();
+  }
+  return e(Modal, { title: "Edit customer — " + src.id, onClose: p.onClose, width: 760 },
+    e(Field, { label: "Customer / contact name" }, e("input", { style: INPUT_S, value: name, onChange: function (ev) { setName(ev.target.value); } })),
+    cos.map(function (co, i) {
+      return e("div", { key: co.id, style: { border: "1px dashed " + C.line, borderRadius: 10, padding: 12, marginBottom: 10, background: C.canvas } },
+        e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 } },
+          e(Field, { label: "Company / plant name #" + (i + 1) }, e("input", { style: INPUT_S, value: co.name || "", onChange: function (ev) { upCo(i, "name", ev.target.value); } })),
+          e(Field, { label: "Location / address" }, e("input", { style: INPUT_S, value: co.address || "", onChange: function (ev) { upCo(i, "address", ev.target.value); } }))),
+        e("div", { style: { fontSize: 12, fontWeight: 700, color: C.mute, textTransform: "uppercase", marginBottom: 6 } }, "Machines at this plant"),
+        (co.machines || []).map(function (m, j) {
+          return e("div", { key: m.id, style: { display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" } },
+            e("input", { style: Object.assign({}, INPUT_S, { flex: "2 1 180px" }), placeholder: "Machine code e.g. 20-111-100-101", value: m.code || "", onChange: function (ev) { upM(i, j, "code", ev.target.value); } }),
+            e("input", { style: Object.assign({}, INPUT_S, { flex: "1 1 120px" }), placeholder: "Model (optional)", value: m.model || "", onChange: function (ev) { upM(i, j, "model", ev.target.value); } }));
+        }),
+        e(Btn, { small: true, kind: "ghost", onClick: function () { addMachine(i); }, label: "+ Add machine" }));
+    }),
+    e("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 } },
+      e(Btn, { kind: "ghost", onClick: addPlant, label: "+ Add another company / plant" })),
+    msg ? e("div", { style: { color: C.red, fontSize: 13, fontWeight: 600, marginBottom: 10 } }, msg) : null,
+    e("div", { style: { display: "flex", gap: 10 } },
+      e(Btn, { kind: "accent", onClick: save, label: "Save changes" }),
+      e(Btn, { kind: "ghost", onClick: p.onClose, label: "Cancel" })),
+    e("div", { style: { fontSize: 12, color: C.mute, marginTop: 10 } }, "Existing complaints keep pointing at their machines. New machines appear for the customer within a few seconds on every device."));
 }
 
 // ================= SOP LIBRARY =================
@@ -1137,7 +1240,7 @@ function SopLibrary(p) {
         e(Field, { label: "PDF file (max 2.5 MB)" }, e("input", { style: INPUT_S, type: "file", accept: "application/pdf", ref: fileRef }))),
       err ? e("div", { style: { color: C.red, fontSize: 13, marginBottom: 10, fontWeight: 600 } }, err) : null,
       e(Btn, { kind: "accent", onClick: upload, disabled: busy, label: busy ? "Uploading…" : "Add SOP to library" }),
-      e("div", { style: { fontSize: 12, color: C.mute, marginTop: 8 } }, "SOPs are read-only for customers and staff. Only admin can add or remove them.")) : null,
+      e("div", { style: { fontSize: 12, color: C.mute, marginTop: 8 } }, "SOPs are view-only for customers (no download). Staff and admin can download; only admin can add or remove.")) : null,
     e(Card, null,
       e(SectionTitle, { title: "Standard operating procedures (" + db.sops.length + ")", right: !isAdmin ? e(Pill, { text: "Read-only", tone: "p-done" }) : null }),
       db.sops.length ? db.sops.map(function (s) {
@@ -1147,12 +1250,12 @@ function SopLibrary(p) {
             e("div", { style: { fontWeight: 700, fontSize: 14 } }, s.title),
             e("div", { style: { fontSize: 12, color: C.mute } }, s.fileName + " · " + fileSizeStr(s.size) + " · added " + fmtDate(s.at))),
           e(Btn, { small: true, onClick: function () { setViewing(s); }, label: "View" }),
-          e("a", { href: s.dataUrl, download: s.fileName, style: { textDecoration: "none" } }, e(Btn, { small: true, kind: "ghost", label: "Download" })),
+          user.role !== "customer" ? e("a", { href: s.dataUrl, download: s.fileName, style: { textDecoration: "none" } }, e(Btn, { small: true, kind: "ghost", label: "Download" })) : null,
           isAdmin ? e(Btn, { small: true, kind: "danger", onClick: function () { remove(s); }, label: "Remove" }) : null);
       }) : e("div", { style: { fontSize: 13, color: C.mute } }, isAdmin ? "No SOPs yet — upload the first one above." : "No SOPs published yet. Check back soon."),
       viewing ? e(Modal, { title: viewing.title, onClose: function () { setViewing(null); }, width: 900 },
-        e("iframe", { src: viewing.dataUrl, style: { width: "100%", height: "70vh", border: "1px solid " + C.line, borderRadius: 8, background: "#fff" }, title: viewing.title }),
-        e("div", { style: { fontSize: 12, color: C.mute, marginTop: 8 } }, "If the preview does not load in your browser, use the Download button instead.")) : null));
+        e("iframe", { src: viewing.dataUrl + (user.role === "customer" ? "#toolbar=0&navpanes=0" : ""), style: { width: "100%", height: "70vh", border: "1px solid " + C.line, borderRadius: 8, background: "#fff" }, title: viewing.title }),
+        e("div", { style: { fontSize: 12, color: C.mute, marginTop: 8 } }, user.role === "customer" ? "Maintenance SOPs are for reading on this platform." : "If the preview does not load in your browser, use the Download button instead.")) : null));
 }
 
 // ================= FEEDBACK / BUG REPORTS =================
@@ -1233,7 +1336,57 @@ function DataTools(p) {
       rows.map(function (r) { return r.map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(","); }).join("\n"));
   }
   const used = Store.usage();
+  const live0 = loadDB();
+  let attCount = 0, attBytes = 0, attClosedCount = 0, attClosedBytes = 0;
+  live0.complaints.forEach(function (c) {
+    (c.attachments || []).forEach(function (f) {
+      attCount++; attBytes += (f.size || 0);
+      if (c.status === "Closed") { attClosedCount++; attClosedBytes += (f.size || 0); }
+    });
+  });
+  const [cleanMsg, setCleanMsg] = useState("");
+  const [cleanConfirm, setCleanConfirm] = useState(null); // "closed" | "all"
+  const [cleaning, setCleaning] = useState(false);
+  function runClean(scope) {
+    setCleaning(true); setCleanConfirm(null); setCleanMsg("Clearing files…");
+    const db2 = loadDB();
+    const targets = db2.complaints.filter(function (c) { return (c.attachments || []).length && (scope === "all" || c.status === "Closed"); });
+    let files = [];
+    targets.forEach(function (c) { files = files.concat((c.attachments || []).filter(function (f) { return f.path; })); });
+    let chain = Promise.resolve(), done = 0;
+    files.forEach(function (f) {
+      chain = chain.then(function () {
+        return apiCall("deleteFile", { path: f.path }).then(function () { done++; }, function () { done++; });
+      });
+    });
+    chain.then(function () {
+      const db3 = loadDB();
+      let cleared = 0;
+      db3.complaints.forEach(function (c) {
+        if ((c.attachments || []).length && (scope === "all" || c.status === "Closed")) { cleared += c.attachments.length; c.attachments = []; }
+      });
+      logAct(db3, "Admin", "admin", "Admin cleared " + cleared + " photo/video file(s) from " + (scope === "all" ? "all complaints" : "closed complaints") + " to free storage");
+      saveDB(db3, ["complaints", "activity"]);
+      setCleaning(false);
+      setCleanMsg("Done ✓ — " + cleared + " file(s) removed from storage.");
+      p.refresh();
+    });
+  }
   return e("div", null,
+    e(Card, { style: { marginBottom: 16 } },
+      e(SectionTitle, { title: "Storage cleanup — photos & videos" }),
+      e("div", { style: { fontSize: 13, marginBottom: 10 } },
+        "Currently on complaints: ", e("b", null, attCount + " file(s) · " + fileSizeStr(attBytes)),
+        attClosedCount ? e("span", { style: { color: C.mute } }, "  (of which " + attClosedCount + " file(s) · " + fileSizeStr(attClosedBytes) + " belong to closed complaints)") : null),
+      !cleanConfirm ? e("div", { style: { display: "flex", gap: 10, flexWrap: "wrap" } },
+        e(Btn, { onClick: function () { setCleanConfirm("closed"); }, disabled: cleaning || !attClosedCount, label: "Clear images from closed complaints" }),
+        e(Btn, { kind: "danger", onClick: function () { setCleanConfirm("all"); }, disabled: cleaning || !attCount, label: "Clear ALL images & videos" }))
+      : e("div", { style: { display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" } },
+        e("b", { style: { fontSize: 13, color: C.red } }, cleanConfirm === "all" ? "Delete every photo/video on every complaint? This cannot be undone." : "Delete all photos/videos on closed complaints? This cannot be undone."),
+        e(Btn, { kind: "danger", onClick: function () { runClean(cleanConfirm); }, label: "Yes, clear now" }),
+        e(Btn, { kind: "ghost", onClick: function () { setCleanConfirm(null); }, label: "Cancel" })),
+      cleanMsg ? e("div", { style: { marginTop: 10, fontSize: 13, fontWeight: 600, color: cleanMsg.includes("✓") ? C.green : C.text } }, cleanMsg) : null,
+      e("div", { style: { marginTop: 10, fontSize: 12, color: C.mute } }, "Files are deleted from JUGMUG cloud storage to free space. Complaint details, messages and history are not affected.")),
     e(Card, { style: { marginBottom: 16 } },
       e(SectionTitle, { title: "Backup & restore" }),
       e("div", { style: { display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" } },
@@ -1261,6 +1414,7 @@ function NewComplaint(p) {
   const [made, setMade] = useState(null);
   const [pending, setPending] = useState([]);   // prepared attachments waiting for submit
   const [submitting, setSubmitting] = useState(false);
+  const [upErr, setUpErr] = useState("");
   useEffect(function () { setMId(machines.length ? machines[0].id : ""); }, [coId]);
 
   function submit() {
@@ -1274,25 +1428,35 @@ function NewComplaint(p) {
     };
     db.complaints.unshift(c);
     logAct(db, user.name, "customer", user.name + " raised complaint " + c.id + " (" + type + ")");
-    saveDB(db, ["complaints", "activity"]);
+    const saved = saveDB(db, ["complaints", "activity"]);
     const files = pending.slice();
     if (!files.length) {
       setSubmitting(false); setMade(c.id); setDesc(""); setPending([]);
       p.refresh();
       return;
     }
-    let chain = Promise.resolve();
-    files.forEach(function (att) {
-      chain = chain.then(function () {
-        return uploadAttachment(c.id, att).then(function (f) {
-          const db2 = loadDB();
-          const row = db2.complaints.find(function (x) { return x.id === c.id; });
-          if (row) { row.attachments = (row.attachments || []).concat([f]); saveDB(db2, ["complaints"]); }
-        });
-      }).catch(function () {});
-    });
+    // Upload only AFTER the complaint row is confirmed on the server —
+    // otherwise the server rejects the file with "Complaint not found"
+    // and the photos silently disappear for staff/admin.
+    const failed = [];
+    function uploadOne(att, attempt) {
+      return uploadAttachment(c.id, att).then(function (f) {
+        const db2 = loadDB();
+        const row = db2.complaints.find(function (x) { return x.id === c.id; });
+        if (row) { row.attachments = (row.attachments || []).concat([f]); return saveDB(db2, ["complaints"]); }
+      }).catch(function (e2) {
+        if (attempt < 2) {
+          return new Promise(function (res) { setTimeout(res, 1500); }).then(function () { return uploadOne(att, attempt + 1); });
+        }
+        failed.push(att.name);
+      });
+    }
+    let chain = saved;
+    files.forEach(function (att) { chain = chain.then(function () { return uploadOne(att, 1); }); });
     chain.then(function () {
       setSubmitting(false); setMade(c.id); setDesc(""); setPending([]);
+      if (failed.length) setUpErr("Complaint submitted, but these files could not be uploaded: " + failed.join(", ") + ". Open the complaint and add them again.");
+      else setUpErr("");
       p.refresh();
     });
   }
@@ -1312,7 +1476,8 @@ function NewComplaint(p) {
       e(AttachControl, { doUpload: function (att) { setPending(function (ps) { return ps.concat([att]); }); return Promise.resolve(); } }),
       pending.length ? e("div", { style: { fontSize: 12, color: C.green, fontWeight: 600, marginTop: 6 } }, pending.length + " file(s) attached — they upload when you submit") : null),
     e(Btn, { kind: "accent", onClick: submit, disabled: submitting, label: submitting ? "Submitting…" : "Submit complaint" }),
-    made ? e("div", { style: { marginTop: 12, padding: 12, background: C.greenBg, borderRadius: 8, fontSize: 14 } }, e("b", null, "Submitted! "), "Your complaint number is ", e("b", null, made), ". Track it under “My complaints”.") : null);
+    made ? e("div", { style: { marginTop: 12, padding: 12, background: C.greenBg, borderRadius: 8, fontSize: 14 } }, e("b", null, "Submitted! "), "Your complaint number is ", e("b", null, made), ". Track it under “My complaints”.") : null,
+    upErr ? e("div", { style: { marginTop: 10, padding: 10, background: C.redBg, borderRadius: 8, fontSize: 13, color: C.red, fontWeight: 600 } }, upErr) : null);
 }
 
 // ================= CUSTOMER: RATE CLOSED COMPLAINTS =================
@@ -1624,6 +1789,16 @@ function CustomerHome(p) {
       e(StatCard, { label: "Closed", value: mine.filter(function (c) { return c.status === "Closed"; }).length, color: C.green })),
     e(Card, { style: { padding: 0, overflow: "hidden" } },
       e(ComplaintTable, { db: db, list: mine, team: false, onOpen: p.onOpen })));
+}
+
+// ================= TEST HOOK (inert in production) =================
+if (typeof window !== "undefined" && window.__SD_TEST) {
+  window.__helpers = {
+    loadDB: loadDB, saveDB: saveDB, apiCall: apiCall, adoptSnapshot: adoptSnapshot,
+    logAct: logAct, uploadAttachment: uploadAttachment,
+    session: function (s) { if (s !== undefined) SESSION = s; return SESSION; },
+    pending: function () { return PENDING; }, custId: custId, complaintId: complaintId, newRoute: newRoute
+  };
 }
 
 // ================= MOUNT =================
