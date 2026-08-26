@@ -125,7 +125,7 @@ const { useState, useEffect, useRef } = React;
 const e = React.createElement;
 
 // ================= CONFIG =================
-const APP_VERSION = "9.1.0";
+const APP_VERSION = "9.1.1";
 const PRIORITIES = ["Low", "Medium", "High", "Critical"];
 const STATUSES = ["Open", "In Progress", "Resolved", "Closed"];
 const ROUTE_STAGES = [
@@ -1034,7 +1034,6 @@ function StaffAccounts(p) {
           e(Btn, { small: true, kind: "ghost", onClick: function () { setPwFor(s); }, label: "Reset password" }),
           e(Btn, { small: true, kind: s.active === false ? "primary" : "danger", onClick: function () { toggle(s); }, label: s.active === false ? "Enable" : "Disable" }));
       }) : e("div", { style: { fontSize: 13, color: C.mute } }, "No staff yet — create the first account above."),
-      editFor ? e(CustomerEditModal, { cid: editFor, user: user, onClose: function () { setEditFor(null); p.refresh(); } }) : null,
       pwFor ? e(PasswordModal, {
         title: "Reset password — " + pwFor.name + " (" + pwFor.id + ")",
         subtitle: "Set the desired password for this staff member.",
