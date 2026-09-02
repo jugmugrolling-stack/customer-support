@@ -125,7 +125,7 @@ const { useState, useEffect, useRef } = React;
 const e = React.createElement;
 
 // ================= CONFIG =================
-const APP_VERSION = "9.4.0";
+const APP_VERSION = "9.5.0";
 const PRIORITIES = ["Low", "Medium", "High", "Critical"];
 const STATUSES = ["Open", "In Progress", "Resolved", "Closed"];
 const ROUTE_STAGES = [
@@ -441,6 +441,49 @@ function balanceDays(targetDate) {
   return Math.round((t - today) / 86400000);
 }
 const DEPARTMENTS = ["Store", "Design", "VMC", "CNC", "Accounts"];
+
+// ================= LANGUAGES (customer-facing) =================
+const I18N = {
+  en: {},
+  hi: {
+    "My Complaints": "\u092e\u0947\u0930\u0940 \u0936\u093f\u0915\u093e\u092f\u0924\u0947\u0902", "New Complaint": "\u0928\u0908 \u0936\u093f\u0915\u093e\u092f\u0924",
+    "Maintenance SOPs": "\u0930\u0916\u0930\u0916\u093e\u0935 SOP", "Terms & Conditions": "\u0928\u093f\u092f\u092e \u0914\u0930 \u0936\u0930\u094d\u0924\u0947\u0902",
+    "Follow Us": "\u0939\u092e\u0938\u0947 \u091c\u0941\u0921\u093c\u0947\u0902", "My Estimates": "\u092e\u0947\u0930\u0947 \u0915\u094b\u091f\u0947\u0936\u0928",
+    "Timeline": "\u0918\u091f\u0928\u093e\u0915\u094d\u0930\u092e", "Complaint raised": "\u0936\u093f\u0915\u093e\u092f\u0924 \u0926\u0930\u094d\u091c \u0939\u0941\u0908",
+    "Assigned to": "\u0938\u094c\u0902\u092a\u093e \u0917\u092f\u093e:", "done": "\u092a\u0942\u0930\u093e \u0939\u0941\u0906",
+    "Cost estimate sent": "\u0932\u093e\u0917\u0924 \u0905\u0928\u0941\u092e\u093e\u0928 \u092d\u0947\u091c\u093e \u0917\u092f\u093e",
+    "Estimate approved": "\u0905\u0928\u0941\u092e\u093e\u0928 \u0938\u094d\u0935\u0940\u0915\u0943\u0924", "Changes requested": "\u092c\u0926\u0932\u093e\u0935 \u092e\u093e\u0902\u0917\u0947 \u0917\u090f",
+    "Reopened": "\u092b\u093f\u0930 \u0916\u094b\u0932\u0940 \u0917\u0908", "Rated": "\u0930\u0947\u091f\u093f\u0902\u0917 \u0926\u0940", "Closed": "\u092c\u0902\u0926",
+    "Problem came back": "\u0938\u092e\u0938\u094d\u092f\u093e \u092b\u093f\u0930 \u0906 \u0917\u0908",
+    "Is the same problem back? You can reopen this complaint within 15 days of closing.": "\u0915\u094d\u092f\u093e \u0935\u0939\u0940 \u0938\u092e\u0938\u094d\u092f\u093e \u092b\u093f\u0930 \u0906 \u0917\u0908? \u092c\u0902\u0926 \u0939\u094b\u0928\u0947 \u0915\u0947 15 \u0926\u093f\u0928 \u0915\u0947 \u0905\u0902\u0926\u0930 \u0906\u092a \u092f\u0939 \u0936\u093f\u0915\u093e\u092f\u0924 \u092b\u093f\u0930 \u0916\u094b\u0932 \u0938\u0915\u0924\u0947 \u0939\u0948\u0902\u0964",
+    "Problem came back — reopen": "\u0938\u092e\u0938\u094d\u092f\u093e \u092b\u093f\u0930 \u0906\u0908 \u2014 \u092b\u093f\u0930 \u0916\u094b\u0932\u0947\u0902",
+    "Tell us what happened": "\u092c\u0924\u093e\u090f\u0902 \u0915\u094d\u092f\u093e \u0939\u0941\u0906",
+    "Reopen complaint": "\u0936\u093f\u0915\u093e\u092f\u0924 \u092b\u093f\u0930 \u0916\u094b\u0932\u0947\u0902", "Cancel": "\u0930\u0926\u094d\u0926 \u0915\u0930\u0947\u0902",
+    "Raise a new complaint": "\u0928\u0908 \u0936\u093f\u0915\u093e\u092f\u0924 \u0926\u0930\u094d\u091c \u0915\u0930\u0947\u0902",
+    "Submit complaint": "\u0936\u093f\u0915\u093e\u092f\u0924 \u092d\u0947\u091c\u0947\u0902", "Language": "\u092d\u093e\u0937\u093e"
+  },
+  pa: {
+    "My Complaints": "\u0a2e\u0a47\u0a30\u0a40\u0a06\u0a02 \u0a38\u0a3c\u0a3f\u0a15\u0a3e\u0a07\u0a24\u0a3e\u0a02", "New Complaint": "\u0a28\u0a35\u0a40\u0a02 \u0a38\u0a3c\u0a3f\u0a15\u0a3e\u0a07\u0a24",
+    "Maintenance SOPs": "\u0a30\u0a71\u0a16-\u0a30\u0a16\u0a3e\u0a05 SOP", "Terms & Conditions": "\u0a28\u0a3f\u0a2f\u0a2e \u0a05\u0a24\u0a47 \u0a38\u0a3c\u0a30\u0a24\u0a3e\u0a02",
+    "Follow Us": "\u0a38\u0a3e\u0a21\u0a47 \u0a28\u0a3e\u0a32 \u0a1c\u0a41\u0a5c\u0a4b", "My Estimates": "\u0a2e\u0a47\u0a30\u0a47 \u0a15\u0a4b\u0a1f\u0a47\u0a38\u0a3c\u0a28",
+    "Timeline": "\u0a18\u0a1f\u0a28\u0a3e\u0a15\u0a4d\u0a30\u0a2e", "Complaint raised": "\u0a38\u0a3c\u0a3f\u0a15\u0a3e\u0a07\u0a24 \u0a26\u0a30\u0a1c \u0a39\u0a4b\u0a08",
+    "Assigned to": "\u0a38\u0a4c\u0a02\u0a2a\u0a3f\u0a06 \u0a17\u0a3f\u0a06:", "done": "\u0a2a\u0a42\u0a30\u0a3e \u0a39\u0a4b\u0a07\u0a06",
+    "Cost estimate sent": "\u0a32\u0a3e\u0a17\u0a24 \u0a05\u0a28\u0a41\u0a2e\u0a3e\u0a28 \u0a2d\u0a47\u0a1c\u0a3f\u0a06 \u0a17\u0a3f\u0a06",
+    "Estimate approved": "\u0a05\u0a28\u0a41\u0a2e\u0a3e\u0a28 \u0a2e\u0a28\u0a1c\u0a3c\u0a42\u0a30", "Changes requested": "\u0a2c\u0a26\u0a32\u0a3e\u0a05 \u0a2e\u0a70\u0a17\u0a47 \u0a17\u0a0f",
+    "Reopened": "\u0a2b\u0a3f\u0a30 \u0a16\u0a4b\u0a32\u0a4d\u0a39\u0a40 \u0a17\u0a08", "Rated": "\u0a30\u0a47\u0a1f\u0a3f\u0a70\u0a17 \u0a26\u0a3f\u0a71\u0a24\u0a40", "Closed": "\u0a2c\u0a70\u0a26",
+    "Problem came back": "\u0a38\u0a2e\u0a71\u0a38\u0a3f\u0a06 \u0a2b\u0a3f\u0a30 \u0a06 \u0a17\u0a08",
+    "Is the same problem back? You can reopen this complaint within 15 days of closing.": "\u0a15\u0a40 \u0a09\u0a39\u0a40 \u0a38\u0a2e\u0a71\u0a38\u0a3f\u0a06 \u0a2b\u0a3f\u0a30 \u0a06 \u0a17\u0a08 \u0a39\u0a48? \u0a2c\u0a70\u0a26 \u0a39\u0a4b\u0a23 \u0a24\u0a4b\u0a02 15 \u0a26\u0a3f\u0a28\u0a3e\u0a02 \u0a26\u0a47 \u0a05\u0a70\u0a26\u0a30 \u0a24\u0a41\u0a38\u0a40\u0a02 \u0a07\u0a39 \u0a38\u0a3c\u0a3f\u0a15\u0a3e\u0a07\u0a24 \u0a2b\u0a3f\u0a30 \u0a16\u0a4b\u0a32\u0a4d\u0a39 \u0a38\u0a15\u0a26\u0a47 \u0a39\u0a4b\u0964",
+    "Problem came back — reopen": "\u0a38\u0a2e\u0a71\u0a38\u0a3f\u0a06 \u0a2b\u0a3f\u0a30 \u0a06\u0a08 \u2014 \u0a2b\u0a3f\u0a30 \u0a16\u0a4b\u0a32\u0a4d\u0a39\u0a4b",
+    "Tell us what happened": "\u0a26\u0a71\u0a38\u0a4b \u0a15\u0a40 \u0a39\u0a4b\u0a07\u0a06",
+    "Reopen complaint": "\u0a38\u0a3c\u0a3f\u0a15\u0a3e\u0a07\u0a24 \u0a2b\u0a3f\u0a30 \u0a16\u0a4b\u0a32\u0a4d\u0a39\u0a4b", "Cancel": "\u0a30\u0a71\u0a26 \u0a15\u0a30\u0a4b",
+    "Raise a new complaint": "\u0a28\u0a35\u0a40\u0a02 \u0a38\u0a3c\u0a3f\u0a15\u0a3e\u0a07\u0a24 \u0a26\u0a30\u0a1c \u0a15\u0a30\u0a4b",
+    "Submit complaint": "\u0a38\u0a3c\u0a3f\u0a15\u0a3e\u0a07\u0a24 \u0a2d\u0a47\u0a1c\u0a4b", "Language": "\u0a2d\u0a3e\u0a38\u0a3c\u0a3e"
+  }
+};
+let LANG = "en";
+try { LANG = Store.get("sd_lang") || "en"; } catch (e2) {}
+function setLang(l) { LANG = l; try { Store.set("sd_lang", l); } catch (e2) {} }
+function T(k) { return (I18N[LANG] && I18N[LANG][k]) || k; }
 function deptOf(db, user) {
   if (!user || user.role !== "staff") return null;
   const s = db.staff.find(function (x) { return x.id === user.id; });
@@ -562,11 +605,19 @@ function HBars(p) {
   }) : e("div", { style: { color: C.mute, fontSize: 13 } }, "No data yet."));
 }
 function TrendLine(p) {
-  const vals = p.values, w = 320, h = 90, max = Math.max.apply(null, vals.concat([1]));
-  const pts = vals.map(function (v, i) {
-    return [(i / Math.max(vals.length - 1, 1)) * (w - 20) + 10, h - 14 - (v / max) * (h - 30)];
-  });
+  const vals = p.values, w = 320, h = 90;
+  const all = vals.concat(p.values2 || []).concat([1]);
+  const max = Math.max.apply(null, all);
+  function toPts(vs) {
+    return vs.map(function (v, i) {
+      return [(i / Math.max(vs.length - 1, 1)) * (w - 20) + 10, h - 14 - (v / max) * (h - 30)];
+    });
+  }
+  const pts = toPts(vals);
+  const pts2 = p.values2 ? toPts(p.values2) : null;
   return e("svg", { width: "100%", height: h, viewBox: "0 0 " + w + " " + h, preserveAspectRatio: "none" },
+    pts2 ? e("polyline", { points: pts2.map(function (pp) { return pp.join(","); }).join(" "), fill: "none", stroke: C.green, strokeWidth: 2 }) : null,
+    pts2 ? pts2.map(function (pp, i) { return e("circle", { key: "b" + i, cx: pp[0], cy: pp[1], r: 2.5, fill: C.green }); }) : null,
     e("polyline", { points: pts.map(function (pp) { return pp.join(","); }).join(" "), fill: "none", stroke: C.blue, strokeWidth: 2.5 }),
     pts.map(function (pp, i) { return e("circle", { key: i, cx: pp[0], cy: pp[1], r: 3, fill: C.blue }); }),
     p.labels.map(function (l, i) {
@@ -712,7 +763,10 @@ function ComplaintModal(p) {
     const order = ["P", "I", "D", "N"];
     mutate(function (cc) {
       const cur = cc.route[i].s;
-      cc.route[i].s = order[(order.indexOf(cur) + 1) % 4];
+      const next = order[(order.indexOf(cur) + 1) % 4];
+      cc.route[i].s = next;
+      if (next === "D") cc.route[i].at = Date.now();   // timeline timestamp
+      else delete cc.route[i].at;
     }, user.name + " set “" + c.route[i].n + "” on " + c.id);
   }
   function setStatus(v) {
@@ -759,6 +813,14 @@ function ComplaintModal(p) {
   function removeTask(t) {
     mutate(function (cc) { cc.deptTasks = (cc.deptTasks || []).filter(function (x) { return x.id !== t.id; }); },
       user.name + " removed a " + (t.dept || "department") + " task from " + c.id);
+  }
+  function requestReopen(note2) {
+    mutate(function (cc) {
+      cc.status = "Open";
+      cc.closedAt = null;
+      cc.reopened = (cc.reopened || []).concat([{ at: Date.now(), by: user.name, note: note2 || "" }]);
+      cc.messages.push({ by: user.name, role: user.role, text: T("Problem came back") + (note2 ? ": " + note2 : ""), at: Date.now() });
+    }, user.name + " REOPENED " + c.id + (note2 ? " — " + note2 : ""));
   }
   function decideQuote(qt, status, comment) {
     const db2 = loadDB();
@@ -884,6 +946,33 @@ function ComplaintModal(p) {
               : (user.role === "customer" ? e(QuoteDecision, { qt: qt, onDecide: decideQuote }) : e("div", { style: { marginTop: 8, fontSize: 12, color: C.mute } }, "Waiting for the customer to approve from their dashboard.")));
         }));
     })(),
+    (function () {
+      // ---- Timeline: every dated event of this complaint ----
+      const ev = [{ at: c.createdAt, label: T("Complaint raised"), by: custName(db, c.customerId) }];
+      if (c.assignedAt && c.assignedTo) ev.push({ at: c.assignedAt, label: T("Assigned to") + " " + staffName(db, c.assignedTo) });
+      (c.route || []).forEach(function (r) { if (r.s === "D" && r.at) ev.push({ at: r.at, label: r.n + " — " + T("done") }); });
+      db.quotes.filter(function (qt) { return qt.complaintId === c.id; }).forEach(function (qt) {
+        ev.push({ at: qt.at, label: T("Cost estimate sent") + " (" + qt.id + " · " + inr(quoteTotals(qt).grand) + ")" });
+        if (qt.approval) ev.push({ at: qt.approval.at, label: (qt.approval.status === "Approved" ? T("Estimate approved") : T("Changes requested")) + " (" + qt.id + ")", hot: qt.approval.status === "Approved" });
+      });
+      (c.reopened || []).forEach(function (r) { ev.push({ at: r.at, label: T("Reopened") + (r.note ? " — " + r.note : ""), late: true }); });
+      if (c.rating) ev.push({ at: c.rating.at, label: T("Rated") + " " + c.rating.stars + "★" });
+      if (c.status === "Closed" && c.closedAt) ev.push({ at: c.closedAt, label: T("Closed"), hot: true });
+      ev.sort(function (a, b) { return (a.at || 0) - (b.at || 0); });
+      return e(Card, { style: { marginBottom: 14 } },
+        e(SectionTitle, { title: T("Timeline") }),
+        e("div", { style: { position: "relative", paddingLeft: 18 } },
+          e("div", { style: { position: "absolute", left: 5, top: 4, bottom: 4, width: 2, background: C.line } }),
+          ev.map(function (evt, i) {
+            return e("div", { key: i, style: { position: "relative", padding: "5px 0 5px 8px" } },
+              e("span", { style: { position: "absolute", left: -17, top: 9, width: 10, height: 10, borderRadius: "50%", background: evt.late ? C.red : (evt.hot ? C.green : C.blue), border: "2px solid #fff", boxShadow: "0 0 0 1px " + C.line } }),
+              e("div", { style: { fontSize: 13, fontWeight: 600 } }, evt.label),
+              e("div", { style: { fontSize: 11, color: C.mute } }, fmtDT(evt.at) + (evt.by ? " · " + evt.by : "")));
+          })));
+    })(),
+    (user.role === "customer" && c.status === "Closed" && c.closedAt && (Date.now() - c.closedAt) < 15 * 86400000)
+      ? e(ReopenBox, { onReopen: requestReopen })
+      : null,
     isTeam ? e(Card, { style: { marginBottom: 14, background: C.blueBg, borderColor: "#bfdbf0" } },
       e(SectionTitle, { title: "Department tasks" + ((c.deptTasks || []).length ? " (" + c.deptTasks.length + ")" : "") }),
       (c.deptTasks || []).length ? (c.deptTasks || []).map(function (t) {
@@ -1034,20 +1123,47 @@ function perfRows(db) {
     const openDelayed = mine.filter(function (c) { return c.status !== "Closed" && c.targetDate && delayDays(c) > 0; });
     const rated = db.complaints.filter(function (c) { return c.rating && c.rating.staffId === s.id; });
     const avgRating = rated.length ? rated.reduce(function (a, c) { return a + c.rating.stars; }, 0) / rated.length : null;
+    // avg resolution (created -> closed, days)
+    const resolved = closed.filter(function (c) { return c.closedAt && c.createdAt; });
+    const avgResDays = resolved.length ? resolved.reduce(function (a, c) { return a + (c.closedAt - c.createdAt); }, 0) / resolved.length / 86400000 : null;
+    // avg first team response (hours) — uses message roles
+    const responded = mine.map(function (c) {
+      const m = (c.messages || []).find(function (mm) { return mm.role === "admin" || mm.role === "staff"; });
+      return m ? (m.at - c.createdAt) : null;
+    }).filter(function (v) { return v !== null && v >= 0; });
+    const avgRespHrs = responded.length ? responded.reduce(function (a, v) { return a + v; }, 0) / responded.length / 3600000 : null;
     return {
       staff: s, assigned: mine.length, open: mine.length - closed.length, closed: closed.length,
       onTimePct: withTarget.length ? Math.round(100 * onTime.length / withTarget.length) : null,
       delayedNow: openDelayed.length,
-      avgRating: avgRating, ratingCount: rated.length
+      avgRating: avgRating, ratingCount: rated.length,
+      avgResDays: avgResDays, avgRespHrs: avgRespHrs
     };
   });
+}
+function deptRows(db) {
+  const map = {};
+  db.staff.filter(function (s) { return s.department; }).forEach(function (s) {
+    map[s.id] = { staff: s, dept: s.department, total: 0, done: 0, overdue: 0, onTime: 0, doneWithTarget: 0 };
+  });
+  db.complaints.forEach(function (c) {
+    (c.deptTasks || []).forEach(function (t) {
+      const r = map[t.deptId]; if (!r) return;
+      r.total++;
+      if (t.status === "Done") {
+        r.done++;
+        if (t.targetDate) { r.doneWithTarget++; if (t.doneAt && t.doneAt <= new Date(t.targetDate + "T23:59:59").getTime()) r.onTime++; }
+      } else if (t.targetDate && balanceDays(t.targetDate) < 0) r.overdue++;
+    });
+  });
+  return Object.keys(map).map(function (k) { return map[k]; });
 }
 function TeamPerformance(p) {
   const rows = perfRows(p.db);
   const th = function (t) { return e("th", { key: t }, t); };
   const td = function (ch, k) { return e("td", { key: k }, ch); };
   const cols = ["Staff", "Assigned", "Open", "Closed", "On-time delivery", "Delayed now"];
-  if (p.showRatings) cols.push("Customer rating");
+  if (p.showRatings) cols.push("First response", "Avg resolution", "Customer rating");
   return e("div", { style: { overflowX: "auto" } },
     e("table", null,
       e("thead", null, e("tr", null, cols.map(th))),
@@ -1058,46 +1174,89 @@ function TeamPerformance(p) {
           td(r.onTimePct === null ? e("span", { style: { color: C.mute } }, "No closed targets") : e(Pill, { text: r.onTimePct + "%", tone: r.onTimePct >= 80 ? "p-ok" : r.onTimePct >= 50 ? "p-warn" : "p-late" }), "t"),
           td(r.delayedNow ? e(Pill, { text: String(r.delayedNow), tone: "p-late" }) : "0", "d")
         ];
-        if (p.showRatings) cells.push(td(r.avgRating === null ? e("span", { style: { color: C.mute } }, "No ratings") : e("span", null, e(Stars, { value: Math.round(r.avgRating) }), e("span", { style: { fontSize: 12, color: C.mute } }, " " + r.avgRating.toFixed(1) + " (" + r.ratingCount + ")")), "r"));
+        if (p.showRatings) {
+          cells.push(td(r.avgRespHrs === null ? e("span", { style: { color: C.mute } }, "—") : e(Pill, { text: r.avgRespHrs < 1 ? Math.round(r.avgRespHrs * 60) + " min" : r.avgRespHrs.toFixed(1) + " hrs", tone: r.avgRespHrs <= 4 ? "p-ok" : r.avgRespHrs <= 24 ? "p-warn" : "p-late" }), "fr"));
+          cells.push(td(r.avgResDays === null ? e("span", { style: { color: C.mute } }, "—") : e("span", { style: { fontWeight: 600 } }, r.avgResDays.toFixed(1) + " days"), "res"));
+          cells.push(td(r.avgRating === null ? e("span", { style: { color: C.mute } }, "No ratings") : e("span", null, e(Stars, { value: Math.round(r.avgRating) }), e("span", { style: { fontSize: 12, color: C.mute } }, " " + r.avgRating.toFixed(1) + " (" + r.ratingCount + ")")), "r"));
+        }
         return e("tr", { key: r.staff.id }, cells);
       }) : e("tr", null, e("td", { colSpan: cols.length, style: { padding: 16, fontSize: 13, color: C.mute } }, "No staff accounts yet.")))));
 }
 
 // ================= ADMIN DASHBOARD =================
 function AdminDashboard(p) {
-  const db = p.db;
-  const [, setTick] = useState(0);
-  useEffect(function () {
-    const t = setInterval(function () { setTick(function (x) { return x + 1; }); }, 3000);
-    return function () { clearInterval(t); };
-  }, []);
+  const [showAllAct, setShowAllAct] = useState(false);
+  const [repMonth, setRepMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [repMsg, setRepMsg] = useState("");
   const live = loadDB();
   const cs = live.complaints;
   const open = cs.filter(function (c) { return c.status !== "Closed"; });
   const delayed = cs.filter(function (c) { return c.targetDate && c.status !== "Closed" && delayDays(c) > 0; });
+  const dueWeek = open.filter(function (c) { if (!c.targetDate) return false; const b = balanceDays(c.targetDate); return b >= 0 && b <= 7; });
   const ratings = cs.filter(function (c) { return c.rating; });
   const avgAll = ratings.length ? (ratings.reduce(function (a, c) { return a + c.rating.stars; }, 0) / ratings.length).toFixed(1) : "—";
-  // trend: last 8 weeks
-  const now = Date.now(); const labels = []; const vals = [];
+  const resolved = cs.filter(function (c) { return c.status === "Closed" && c.closedAt && c.createdAt; });
+  const avgRes = resolved.length ? (resolved.reduce(function (a, c) { return a + (c.closedAt - c.createdAt); }, 0) / resolved.length / 86400000).toFixed(1) : "—";
+  // trend: new vs closed, last 8 weeks
+  const now = Date.now(); const labels = []; const vals = []; const vals2 = [];
   for (let i = 7; i >= 0; i--) {
     const start = now - (i + 1) * 7 * 86400000, end = now - i * 7 * 86400000;
     vals.push(cs.filter(function (c) { return c.createdAt > start && c.createdAt <= end; }).length);
-    labels.push("W-" + i);
+    vals2.push(cs.filter(function (c) { return c.closedAt && c.closedAt > start && c.closedAt <= end; }).length);
+    labels.push(i === 0 ? "now" : i + "w");
+  }
+  // needs attention: 5 most overdue complaints + dept tasks
+  const attention = [];
+  cs.forEach(function (c) {
+    if (c.status !== "Closed" && c.targetDate) {
+      const b = balanceDays(c.targetDate);
+      if (b < 0) attention.push({ kind: "Complaint", cid: c.id, label: c.id + " · " + c.type + " · " + custName(live, c.customerId), over: -b, who: c.assignedTo ? staffName(live, c.assignedTo) : "Unassigned" });
+    }
+    (c.deptTasks || []).forEach(function (t) {
+      if (t.status !== "Done" && t.targetDate) {
+        const b = balanceDays(t.targetDate);
+        if (b < 0) attention.push({ kind: (t.dept || "Dept") + " task", cid: c.id, label: t.text + " · " + c.id, over: -b, who: staffLabel(live, t.deptId) });
+      }
+    });
+  });
+  attention.sort(function (a, b) { return b.over - a.over; });
+  const drows = deptRows(live);
+  function monthlyReport() {
+    setRepMsg("Building report…");
+    monthlyReportPdf(live, repMonth).then(function () { setRepMsg("Report downloaded ✓"); },
+      function (e2) { setRepMsg("PDF engine could not load: " + e2.message); });
   }
   return e("div", null,
     e("div", { style: { display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 } },
-      e(StatCard, { label: "Total complaints", value: cs.length }),
-      e(StatCard, { label: "Open", value: open.length, color: C.blue }),
-      e(StatCard, { label: "Delayed vs target", value: delayed.length, color: delayed.length ? C.red : C.green }),
-      e(StatCard, { label: "Closed", value: cs.length - open.length, color: C.green }),
-      e(StatCard, { label: "Avg customer rating", value: avgAll, color: C.gold, sub: ratings.length + " rating" + (ratings.length === 1 ? "" : "s") })),
+      e(StatCard, { label: "Open complaints", value: open.length, color: C.blue, sub: cs.length + " total · " + (cs.length - open.length) + " closed" }),
+      e(StatCard, { label: "Overdue now", value: delayed.length, color: delayed.length ? C.red : C.green, sub: delayed.length ? "action needed" : "all on track" }),
+      e(StatCard, { label: "Due in 7 days", value: dueWeek.length, color: C.amber }),
+      e(StatCard, { label: "Avg resolution", value: avgRes, color: C.teal, sub: "days · " + resolved.length + " resolved" }),
+      e(StatCard, { label: "Avg rating", value: avgAll, color: C.gold, sub: ratings.length + " rating" + (ratings.length === 1 ? "" : "s") })),
+    attention.length ? e(Card, { style: { marginBottom: 16, background: C.redBg, borderColor: "#f3c2cd" } },
+      e(SectionTitle, { title: "⚠ Needs attention — most overdue (" + attention.length + ")" }),
+      attention.slice(0, 5).map(function (a, i) {
+        return e("div", { key: i, onClick: function () { if (p.onOpen) p.onOpen(a.cid); }, style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "8px 10px", marginBottom: 6, background: "#fff", border: "1px solid #f3c2cd", borderRadius: 8, cursor: "pointer" } },
+          e(Pill, { text: "OVERDUE " + a.over + "d", tone: "p-late" }),
+          e(Pill, { text: a.kind, tone: "p-mute" }),
+          e("span", { style: { flex: "1 1 200px", fontSize: 13, fontWeight: 600 } }, a.label),
+          e("span", { style: { fontSize: 11, color: C.mute } }, a.who));
+      })) : null,
     e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 12, marginBottom: 16 } },
+      e(Card, null, e(SectionTitle, { title: "New vs closed — 8 weeks", right: e("span", { style: { fontSize: 10 } }, e("span", { style: { color: C.blue, fontWeight: 700 } }, "— new "), e("span", { style: { color: C.green, fontWeight: 700 } }, " — closed")) }),
+        e(TrendLine, { values: vals, values2: vals2, labels: labels })),
       e(Card, null, e(SectionTitle, { title: "Complaints by status" }),
-        e(Donut, { data: STATUSES.map(function (s) { return { label: s, value: cs.filter(function (c) { return c.status === s; }).length, color: STATUS_TONE[s].fg }; }) })),
-      e(Card, null, e(SectionTitle, { title: "Workload by staff" }),
-        e(HBars, { data: perfRows(live).map(function (r) { return { label: r.staff.name, value: r.assigned, text: r.open + " open / " + r.assigned + " total" }; }) })),
-      e(Card, null, e(SectionTitle, { title: "New complaints — last 8 weeks" }),
-        e(TrendLine, { values: vals, labels: labels }))),
+        e(Donut, { data: STATUSES.map(function (st) { return { label: st, value: cs.filter(function (c) { return c.status === st; }).length, color: STATUS_TONE[st].fg }; }) })),
+      e(Card, null, e(SectionTitle, { title: "Workload by staff (open)" }),
+        e(HBars, { data: perfRows(live).map(function (r) { return { label: r.staff.name, value: r.open, text: r.open + " open / " + r.assigned + " total" }; }) })),
+      drows.length ? e(Card, null, e(SectionTitle, { title: "Department workload" }),
+        e(HBars, { data: drows.map(function (r) { return { label: r.dept + " · " + r.staff.name, value: r.total - r.done, text: (r.total - r.done) + " pending / " + r.done + " done" + (r.overdue ? " · " + r.overdue + " overdue" : "") }; }) })) : null),
+    e(Card, { style: { marginBottom: 16 } },
+      e(SectionTitle, { title: "Monthly performance report", right: repMsg ? e("span", { style: { fontSize: 12, fontWeight: 600, color: repMsg.includes("✓") ? C.green : C.mute } }, repMsg) : null }),
+      e("div", { style: { display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" } },
+        e(Field, { label: "Month" }, e("input", { style: Object.assign({}, INPUT_S, { width: 170 }), type: "month", value: repMonth, onChange: function (ev) { setRepMonth(ev.target.value); } })),
+        e(Btn, { kind: "accent", onClick: monthlyReport, label: "Download report (PDF)" }),
+        e("span", { style: { fontSize: 12, color: C.mute } }, "Per-staff delivery, response & ratings · department on-time % · top delayed jobs — ready for review meetings."))),
     e(Card, { style: { marginBottom: 16 } },
       e(SectionTitle, { title: "Team performance — delivery & ratings" }),
       e(TeamPerformance, { db: live, showRatings: true })),
@@ -1117,10 +1276,11 @@ function AdminDashboard(p) {
     e(Card, null,
       e(SectionTitle, { title: "Live activity", right: e("span", { style: { fontSize: 11, color: C.green, fontWeight: 700 } }, "● auto-refreshing") }),
       e("div", { style: { maxHeight: 260, overflowY: "auto" } },
-        live.activity.length ? live.activity.slice(0, 60).map(function (a, i) {
+        live.activity.length ? live.activity.slice(0, showAllAct ? 200 : 30).map(function (a, i) {
           return e("div", { key: i, style: { fontSize: 13, padding: "6px 0", borderBottom: "1px solid " + C.canvas } },
             e("span", { style: { color: C.mute, fontSize: 11, marginRight: 8 } }, fmtDT(a.at)), a.text);
-        }) : e("div", { style: { fontSize: 13, color: C.mute } }, "No activity yet."))));
+        }) : e("div", { style: { fontSize: 13, color: C.mute } }, "No activity yet.")),
+      live.activity.length > 30 ? e(Btn, { small: true, kind: "ghost", onClick: function () { setShowAllAct(!showAllAct); }, label: showAllAct ? "Show less" : "Show all (" + live.activity.length + ")" }) : null));
 }
 
 // ================= STAFF ACCOUNTS (admin) =================
@@ -1305,6 +1465,7 @@ function CustomerAccounts(p) {
           e("span", { style: { fontSize: 12, color: C.mute } }, (cu.companies || []).length + " plant(s) · " + mCount + " machine(s)"),
           cu.active === false ? e(Pill, { text: "Disabled", tone: "p-late" }) : null,
           user.role === "admin" ? e(Btn, { small: true, onClick: function () { setEditFor(cu.id); }, label: "Edit" }) : null,
+          e(Btn, { small: true, kind: "ghost", onClick: function () { printQrSheet(cu).catch(function (e2) { alert(e2.message); }); }, label: "QR stickers" }),
           e(Btn, { small: true, kind: "ghost", onClick: function () { setPwFor(cu); }, label: "Reset password" }),
           user.role === "admin" ? e(Btn, { small: true, kind: cu.active === false ? "primary" : "ghost", onClick: function () { toggleCust(cu); }, label: cu.active === false ? "Enable" : "Disable" }) : null,
           user.role === "admin" ? (delCust === cu.id
@@ -1613,6 +1774,17 @@ function NewComplaint(p) {
   const co = companies.find(function (x) { return x.id === coId; });
   const machines = (co && co.machines) || [];
   const [mId, setMId] = useState("");
+  // QR deep link: once the customer's plants arrive, select the scanned plant + machine
+  useEffect(function () {
+    const qr = window.__SD_QR;
+    if (!qr || !companies.length) return;
+    const coOk = companies.find(function (x) { return x.id === qr.plant; });
+    if (coOk) {
+      setCoId(coOk.id);
+      if ((coOk.machines || []).some(function (m) { return m.id === qr.machine; })) setMId(qr.machine);
+    }
+    window.__SD_QR = null;
+  }, [companies.length]);
   const [type, setType] = useState(BREAKDOWN_TYPES[0]);
   const [priority, setPriority] = useState("Medium");
   const [desc, setDesc] = useState("");
@@ -1667,7 +1839,7 @@ function NewComplaint(p) {
   }
   if (!companies.length) return e(Card, null, e("div", { style: { fontSize: 14, color: C.mute } }, "No plants or machines are registered on your account yet. Please contact the JUGMUG sales service team."));
   return e(Card, null,
-    e(SectionTitle, { title: "Raise a new complaint" }),
+    e(SectionTitle, { title: T("Raise a new complaint") }),
     e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 } },
       e(Field, { label: "Company / plant" }, e("select", { style: INPUT_S, value: coId, onChange: function (ev) { setCoId(ev.target.value); } },
         companies.map(function (x) { return e("option", { key: x.id, value: x.id }, x.name); }))),
@@ -1680,7 +1852,7 @@ function NewComplaint(p) {
       e("div", { className: "eyebrow", style: { marginBottom: 6 } }, "Photos / videos of the problem (optional)"),
       e(AttachControl, { doUpload: function (att) { setPending(function (ps) { return ps.concat([att]); }); return Promise.resolve(); } }),
       pending.length ? e("div", { style: { fontSize: 12, color: C.green, fontWeight: 600, marginTop: 6 } }, pending.length + " file(s) attached — they upload when you submit") : null),
-    e(Btn, { kind: "accent", onClick: submit, disabled: submitting, label: submitting ? "Submitting…" : "Submit complaint" }),
+    e(Btn, { kind: "accent", onClick: submit, disabled: submitting, label: submitting ? "…" : T("Submit complaint") }),
     made ? e("div", { style: { marginTop: 12, padding: 12, background: C.greenBg, borderRadius: 8, fontSize: 14 } }, e("b", null, "Submitted! "), "Your complaint number is ", e("b", null, made), ". Track it under “My complaints”.") : null,
     upErr ? e("div", { style: { marginTop: 10, padding: 10, background: C.redBg, borderRadius: 8, fontSize: 13, color: C.red, fontWeight: 600 } }, upErr) : null);
 }
@@ -1841,7 +2013,7 @@ function App() {
   const stored = Store.get(K.session);
   if (stored && stored.token && !SESSION) SESSION = stored;
   const [user, setUser] = useState(stored && stored.user ? stored.user : null);
-  const [page, setPage] = useState("home");
+  const [page, setPage] = useState(function () { return (window.__SD_QR && user && user.role === "customer") ? "new" : "home"; });
   const [rev, setRev] = useState(0);
   const [openC, setOpenC] = useState(null);
   const [selfPw, setSelfPw] = useState(false);
@@ -1873,11 +2045,19 @@ function App() {
   useEffect(function () {
     if (!user || !SESSION || (typeof window !== "undefined" && window.__SD_NO_POLL)) return;
     let dead = false;
+    let lastHash = "";
     function pull() {
       apiCall("load").then(function (j) {
         if (dead) return;
         SYNC_ERR = "";
-        if (PENDING === 0) { adoptSnapshot(j.snapshot); setRev(function (x) { return x + 1; }); }
+        if (PENDING === 0) {
+          const h = JSON.stringify(j.snapshot);
+          if (h !== lastHash) {              // skip identical snapshots — no useless rerenders
+            lastHash = h;
+            adoptSnapshot(j.snapshot);
+            setRev(function (x) { return x + 1; });
+          }
+        }
       }).catch(function (err) {
         if (dead) return;
         if (err.code === "AUTH") { SESSION = null; Store.set(K.session, null); setUser(null); }
@@ -1905,7 +2085,7 @@ function App() {
     : {
       admin: [["home", "Dashboard"], ["complaints", "Complaints"], ["staff", "Staff Accounts"], ["customers", "Customer Accounts"], ["quotes", "Cost Generator"], ["sops", "SOP Library"], ["terms", "Terms & Conditions"], ["feedback", "Feedback & Bugs"], ["branding", "Branding"], ["data", "Data & Backup"]],
       staff: [["home", "My Desk"], ["complaints", "Complaints"], ["customers", "Customer Accounts"], ["quotes", "Cost Generator"], ["sops", "SOP Library"], ["feedback", "Feedback & Bugs"]],
-      customer: [["home", "My Complaints"], ["new", "New Complaint"], ["sops", "Maintenance SOPs"], ["terms", "Terms & Conditions"], ["follow", "Follow Us"]]
+      customer: [["home", T("My Complaints")], ["new", T("New Complaint")], ["estimates", T("My Estimates")], ["sops", T("Maintenance SOPs")], ["terms", T("Terms & Conditions")], ["follow", T("Follow Us")]]
     }[user.role];
 
   function renderBody() {
@@ -1913,7 +2093,7 @@ function App() {
     if (page === "feedback") return e(Feedback, { db: db, user: user, refresh: refresh });
     if (page === "branding" && user.role === "admin") return e(BrandingPage, { db: db, user: user, refresh: refresh });
     if (user.role === "admin") {
-      if (page === "home") return e(AdminDashboard, { db: db });
+      if (page === "home") return e(AdminDashboard, { db: db, onOpen: setOpenC });
       if (page === "complaints") return e(TeamComplaints, { db: db, user: user, refresh: refresh, onOpen: setOpenC });
       if (page === "staff") return e(StaffAccounts, { db: db, refresh: refresh });
       if (page === "customers") return e(CustomerAccounts, { db: db, user: user, refresh: refresh });
@@ -1921,6 +2101,7 @@ function App() {
     }
     if (page === "quotes" && (user.role === "admin" || (user.role === "staff" && !userDept))) return e(CostGenerator, { db: db, user: user, refresh: refresh });
     if (page === "terms" && (user.role === "admin" || user.role === "customer")) return e(TermsPage, { db: db, user: user, refresh: refresh });
+    if (page === "estimates" && user.role === "customer") return e(MyEstimates, { db: db, user: user, refresh: refresh, onOpen: setOpenC });
     if (page === "follow" && user.role === "customer") return e(FollowPage, { db: db, user: user, refresh: refresh });
     if (user.role === "staff") {
       if (page === "home") return userDept ? e(DeptDesk, { db: db, user: user, refresh: refresh, onOpen: setOpenC }) : e(StaffDesk, { db: db, user: user, refresh: refresh, onOpen: setOpenC });
@@ -1934,7 +2115,7 @@ function App() {
     }
     return null;
   }
-  const NAV_ICON = { home: "▦", complaints: "⚐", staff: "◈", customers: "▣", quotes: "₹", sops: "≡", terms: "§", follow: "◎", feedback: "✉", branding: "◆", data: "⛁", "new": "+" };
+  const NAV_ICON = { home: "▦", complaints: "⚐", staff: "◈", customers: "▣", quotes: "₹", estimates: "₹", sops: "≡", terms: "§", follow: "◎", feedback: "✉", branding: "◆", data: "⛁", "new": "+" };
   const ROLE_LABEL = { admin: "Factory Admin", staff: "Sales Service", customer: "Customer" };
   const PAGE_SUB = {
     home: { admin: "Team performance, delays and complaint monitoring", staff: "Your assigned complaints and delivery targets", customer: "Track your machine complaints" },
@@ -1960,6 +2141,15 @@ function App() {
       e("div", { className: "nav-sep" }),
       e("button", { title: "Refresh data", "aria-label": "Refresh", className: "nav-btn", onClick: function () { refresh(true); } }, "⟳ Refresh"),
       e("button", { className: "nav-btn", onClick: function () { setSelfPw(true); } }, e("span", { className: "ico" }, "∗"), "Change password"),
+      user.role === "customer" ? e("div", { style: { padding: "6px 14px 10px" } },
+        e("select", {
+          value: LANG, "aria-label": "Language",
+          onChange: function (ev) { setLang(ev.target.value); setRev(function (x) { return x + 1; }); },
+          style: { width: "100%", background: "rgba(255,255,255,.08)", color: "#fff", border: "1px solid rgba(255,255,255,.2)", borderRadius: 8, padding: "7px 8px", fontSize: 13 }
+        },
+          e("option", { value: "en", style: { color: "#111" } }, "English"),
+          e("option", { value: "hi", style: { color: "#111" } }, "\u0939\u093f\u0928\u094d\u0926\u0940"),
+          e("option", { value: "pa", style: { color: "#111" } }, "\u0a2a\u0a70\u0a1c\u0a3e\u0a2c\u0a40"))) : null,
       e("button", { className: "nav-btn", onClick: logout }, e("span", { className: "ico" }, "⏻"), "Sign out"),
       e("div", { className: "who" },
         e("b", null, user.name),
@@ -2014,6 +2204,24 @@ function StaffDesk(p) {
     e(Card, { style: { padding: 0, overflow: "hidden" } },
       e("div", { style: { padding: "14px 16px 0" } }, e(SectionTitle, { title: "My assigned complaints" })),
       e(ComplaintTable, { db: db, list: mine, team: true, onOpen: p.onOpen })));
+}
+
+// Customer "problem came back" box on recently-closed complaints
+function ReopenBox(p) {
+  const [mode, setMode] = useState(false);
+  const [note2, setNote2] = useState("");
+  if (!mode) {
+    return e(Card, { style: { marginBottom: 14, background: C.amberBg, borderColor: "#f2e2ad" } },
+      e("div", { style: { display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" } },
+        e("span", { style: { fontSize: 13, fontWeight: 600, flex: "1 1 240px" } }, T("Is the same problem back? You can reopen this complaint within 15 days of closing.")),
+        e(Btn, { kind: "primary", onClick: function () { setMode(true); }, label: T("Problem came back — reopen") })));
+  }
+  return e(Card, { style: { marginBottom: 14, background: C.amberBg, borderColor: "#f2e2ad" } },
+    e(Field, { label: T("Tell us what happened") },
+      e("input", { style: INPUT_S, value: note2, onChange: function (ev) { setNote2(ev.target.value); } })),
+    e("div", { style: { display: "flex", gap: 10 } },
+      e(Btn, { kind: "accent", onClick: function () { p.onReopen(note2.trim()); }, label: T("Reopen complaint") }),
+      e(Btn, { kind: "ghost", onClick: function () { setMode(false); }, label: T("Cancel") })));
 }
 
 // Customer decision buttons on a linked estimate
@@ -2387,6 +2595,82 @@ function quotePdf(qt) {
   });
 }
 function anyQuotePdf(qt) { return qt.kind === "general" ? quotePdf(qt) : partPdf(qt); }
+// Monthly performance report for review meetings
+function monthlyReportPdf(db, ym) {
+  return loadJsPdf().then(function (JsPDF) {
+    const doc = new JsPDF({ unit: "mm", format: "a4" });
+    const W = 210, M = 14;
+    const mStart = new Date(ym + "-01T00:00:00").getTime();
+    const mEndD = new Date(ym + "-01T00:00:00"); mEndD.setMonth(mEndD.getMonth() + 1);
+    const mEnd = mEndD.getTime();
+    const inM = function (t) { return t && t >= mStart && t < mEnd; };
+    const monthName = new Date(mStart).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+    pdfHeader(doc, "Monthly performance report", monthName, "Generated " + fmtDate(Date.now()));
+    let y = 38;
+    const created = db.complaints.filter(function (c) { return inM(c.createdAt); });
+    const closed = db.complaints.filter(function (c) { return inM(c.closedAt); });
+    const openNow = db.complaints.filter(function (c) { return c.status !== "Closed"; });
+    const ratedM = db.complaints.filter(function (c) { return c.rating && inM(c.rating.at); });
+    const avgR = ratedM.length ? (ratedM.reduce(function (a, c) { return a + c.rating.stars; }, 0) / ratedM.length).toFixed(1) : "—";
+    doc.setTextColor(24, 36, 51); doc.setFontSize(11); doc.setFont("helvetica", "bold");
+    doc.text("Summary", M, y); y += 6;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9.5);
+    [["New complaints", String(created.length)], ["Closed this month", String(closed.length)], ["Open right now", String(openNow.length)], ["Avg rating (this month)", String(avgR) + (ratedM.length ? " (" + ratedM.length + " ratings)" : "")]].forEach(function (rw) {
+      doc.text(rw[0], M, y); doc.setFont("helvetica", "bold"); doc.text(rw[1], M + 70, y); doc.setFont("helvetica", "normal"); y += 5.5;
+    });
+    y += 4;
+    // staff table
+    doc.setFontSize(11); doc.setFont("helvetica", "bold"); doc.text("Sales service team", M, y); y += 6;
+    const cols = [["STAFF", M], ["ASSIGNED", M + 52], ["CLOSED", M + 76], ["ON-TIME", M + 96], ["RESP", M + 116], ["RESOLUTION", M + 136], ["RATING", M + 164]];
+    function thead2() {
+      doc.setFillColor(239, 243, 247); doc.rect(M, y - 4, W - 2 * M, 7, "F");
+      doc.setFontSize(7.5); doc.setFont("helvetica", "bold"); doc.setTextColor(97, 114, 136);
+      cols.forEach(function (cdef) { doc.text(cdef[0], cdef[1] + 1, y); });
+      y += 6; doc.setFont("helvetica", "normal"); doc.setTextColor(24, 36, 51); doc.setFontSize(8.5);
+    }
+    thead2();
+    perfRows(db).forEach(function (r) {
+      if (y > 265) { doc.addPage(); pdfHeader(doc, "Monthly performance report", monthName, ""); y = 38; thead2(); }
+      doc.text(String(r.staff.name).slice(0, 24), M + 1, y);
+      doc.text(String(r.assigned), M + 53, y);
+      doc.text(String(r.closed), M + 77, y);
+      doc.text(r.onTimePct === null ? "—" : r.onTimePct + "%", M + 97, y);
+      doc.text(r.avgRespHrs === null ? "—" : (r.avgRespHrs < 1 ? Math.round(r.avgRespHrs * 60) + "m" : r.avgRespHrs.toFixed(1) + "h"), M + 117, y);
+      doc.text(r.avgResDays === null ? "—" : r.avgResDays.toFixed(1) + " days", M + 137, y);
+      doc.text(r.avgRating === null ? "—" : r.avgRating.toFixed(1) + "/5 (" + r.ratingCount + ")", M + 165, y);
+      doc.setDrawColor(230, 236, 243); doc.line(M, y + 1.5, W - M, y + 1.5);
+      y += 6;
+    });
+    y += 5;
+    // departments
+    const dr = deptRows(db);
+    if (dr.length) {
+      doc.setFontSize(11); doc.setFont("helvetica", "bold"); doc.text("Departments (task completion)", M, y); y += 6;
+      doc.setFontSize(8.5); doc.setFont("helvetica", "normal");
+      dr.forEach(function (r) {
+        if (y > 268) { doc.addPage(); pdfHeader(doc, "Monthly performance report", monthName, ""); y = 38; }
+        const pct = r.doneWithTarget ? Math.round(100 * r.onTime / r.doneWithTarget) + "% on-time" : "no targets closed";
+        doc.text(r.dept + " — " + r.staff.name + ": " + r.done + "/" + r.total + " tasks done · " + pct + (r.overdue ? " · " + r.overdue + " OVERDUE" : ""), M + 1, y);
+        y += 5.5;
+      });
+      y += 4;
+    }
+    // top delayed
+    const late = db.complaints.filter(function (c) { return c.status !== "Closed" && c.targetDate && balanceDays(c.targetDate) < 0; })
+      .sort(function (a, b) { return balanceDays(a.targetDate) - balanceDays(b.targetDate); }).slice(0, 5);
+    if (late.length) {
+      doc.setFontSize(11); doc.setFont("helvetica", "bold"); doc.text("Most delayed right now", M, y); y += 6;
+      doc.setFontSize(8.5); doc.setFont("helvetica", "normal");
+      late.forEach(function (c) {
+        doc.text(c.id + " · " + c.type + " · " + custName(db, c.customerId) + " — " + (-balanceDays(c.targetDate)) + " days over · " + (c.assignedTo ? staffName(db, c.assignedTo) : "Unassigned"), M + 1, y);
+        y += 5.5;
+      });
+    }
+    doc.setFontSize(8); doc.setTextColor(97, 114, 136);
+    doc.text("Generated on JUGMUG Service Desk · " + fmtDT(Date.now()), M, 288);
+    doc.save("JUGMUG-report-" + ym + ".pdf");
+  });
+}
 function waShare(text) {
   try { window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank"); } catch (e2) {}
 }
@@ -2402,6 +2686,52 @@ function copyTxt(text, done) {
     fin();
   }
 }
+// QR sticker sheet — lazy-load qrcodejs, open printable window
+let QRLIB_LOADING = null;
+function loadQrLib() {
+  if (window.QRCode) return Promise.resolve(window.QRCode);
+  if (QRLIB_LOADING) return QRLIB_LOADING;
+  QRLIB_LOADING = new Promise(function (res, rej) {
+    const sc = document.createElement("script");
+    sc.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
+    sc.onload = function () { window.QRCode ? res(window.QRCode) : rej(new Error("QR library missing")); };
+    sc.onerror = function () { rej(new Error("Could not load QR library")); };
+    document.head.appendChild(sc);
+  });
+  return QRLIB_LOADING;
+}
+function printQrSheet(cu) {
+  return loadQrLib().then(function (QRC) {
+    const base = "https://customer-support-jugmug.vercel.app/";
+    const win = window.open("", "_blank");
+    if (!win) throw new Error("Popup blocked — allow popups to print QR stickers");
+    const d = win.document;
+    d.write("<html><head><title>QR stickers — " + cu.name + "</title><style>" +
+      "body{font-family:system-ui,sans-serif;padding:16px}" +
+      ".g{display:flex;flex-wrap:wrap;gap:14px}" +
+      ".s{border:2px solid #16212f;border-radius:10px;padding:12px;width:200px;text-align:center;page-break-inside:avoid}" +
+      ".s b{display:block;font-size:13px;margin-top:8px}.s small{color:#555;font-size:11px}" +
+      ".h{margin-bottom:14px}.h small{color:#555}" +
+      "@media print{.np{display:none}}</style></head><body>" +
+      "<div class=h><b>" + (BRAND.company || "JUGMUG") + " — machine QR stickers</b><br><small>" + cu.name + " (" + cu.id + ") · scan to raise a complaint for that machine</small></div>" +
+      "<button class=np onclick=\"window.print()\">Print</button><div class=g id=g></div></body></html>");
+    d.close();
+    const g = d.getElementById("g");
+    (cu.companies || []).forEach(function (co) {
+      (co.machines || []).forEach(function (m) {
+        const cell = d.createElement("div"); cell.className = "s";
+        const qdiv = d.createElement("div");
+        cell.appendChild(qdiv);
+        const lbl = d.createElement("b"); lbl.textContent = m.code + (m.model ? " · " + m.model : "");
+        const sm = d.createElement("small"); sm.textContent = co.name;
+        cell.appendChild(lbl); cell.appendChild(sm);
+        g.appendChild(cell);
+        new QRC(qdiv, { text: base + "?plant=" + encodeURIComponent(co.id) + "&machine=" + encodeURIComponent(m.id), width: 140, height: 140 });
+      });
+    });
+  });
+}
+
 // Shared save — every saved quote goes to the cloud for the whole team
 function persistQuote(user, qt, refresh, after) {
   const db2 = loadDB();
@@ -2923,6 +3253,28 @@ function DeptDesk(p) {
         : e("div", { style: { fontSize: 13, color: C.mute } }, "No tasks assigned to your department yet. Tasks appear here the moment admin or sales staff assign them.")));
 }
 
+// ================= MY ESTIMATES (customer) =================
+function MyEstimates(p) {
+  const db = p.db, user = p.user;
+  const mine = (db.quotes || []).filter(function (qt) { return qt.customerId === user.id; });
+  const [msg, setMsg] = useState("");
+  return e(Card, null,
+    e(SectionTitle, { title: T("My Estimates") + " (" + mine.length + ")" }),
+    msg ? e("div", { style: { fontSize: 13, color: C.red, fontWeight: 600, marginBottom: 8 } }, msg) : null,
+    mine.length ? mine.map(function (qt) {
+      const tt = quoteTotals(qt);
+      return e("div", { key: qt.id, style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "10px 0", borderBottom: "1px solid " + C.canvas } },
+        e("b", { className: "pcode", style: { minWidth: 100 } }, qt.id),
+        qt.complaintId ? e("span", { className: "pcode", style: { fontSize: 11, cursor: "pointer" }, onClick: function () { p.onOpen(qt.complaintId); } }, qt.complaintId) : null,
+        e("span", { style: { flex: "1 1 140px", fontSize: 13 } }, (qt.items || []).length + " item(s)"),
+        e("b", { style: { whiteSpace: "nowrap", color: C.amber } }, inr(tt.grand)),
+        e(ApprovalPill, { qt: qt }),
+        e("span", { style: { fontSize: 11, color: C.mute } }, fmtDate(qt.at)),
+        e(Btn, { small: true, onClick: function () { quotePdf(qt).catch(function (e2) { setMsg("PDF engine could not load: " + e2.message); }); }, label: "PDF" }),
+        !qt.approval ? e(Btn, { small: true, kind: "accent", onClick: function () { p.onOpen(qt.complaintId); }, label: T("Review & approve") }) : null);
+    }) : e("div", { style: { fontSize: 13, color: C.mute } }, T("No estimates yet.")));
+}
+
 // ================= CUSTOMER HOME =================
 function CustomerHome(p) {
   const db = p.db, user = p.user;
@@ -2959,6 +3311,14 @@ if (typeof window !== "undefined" && window.__SD_TEST) {
 }
 
 // ================= MOUNT =================
+// QR deep link support: /?plant=...&machine=... (from printed machine stickers)
+try {
+  const usp = new URLSearchParams(window.location.search);
+  if (usp.get("machine") || usp.get("plant")) {
+    window.__SD_QR = { plant: usp.get("plant") || "", machine: usp.get("machine") || "" };
+    try { window.history.replaceState(null, "", window.location.pathname); } catch (e2) {}
+  }
+} catch (e2) {}
 applyBrand(Store.get("jm8_brand") || DEFAULT_BRAND);
 const rootEl = document.getElementById("root");
 ReactDOM.createRoot(rootEl).render(e(App));
