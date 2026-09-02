@@ -125,7 +125,7 @@ const { useState, useEffect, useRef } = React;
 const e = React.createElement;
 
 // ================= CONFIG =================
-const APP_VERSION = "9.5.0";
+const APP_VERSION = "9.5.1";
 const PRIORITIES = ["Low", "Medium", "High", "Critical"];
 const STATUSES = ["Open", "In Progress", "Resolved", "Closed"];
 const ROUTE_STAGES = [
@@ -201,7 +201,9 @@ async function apiCall(action, payload) {
   return j;
 }
 
+let SERVER_SEQ = { complaint: 0 };
 function adoptSnapshot(snap) {
+  if (snap.seq && typeof snap.seq.complaint === "number") SERVER_SEQ = snap.seq;
   const base = emptyDB();
   ["staff", "customers", "complaints", "activity", "feedback", "sops", "quotes"].forEach(function (k) { if (snap[k]) base[k] = snap[k]; });
   if (snap.admin) base.admin = snap.admin;
@@ -241,12 +243,12 @@ function saveDB(db, keys) {
   if (puts.length || dels.length) {
     PENDING++;
     const pr = apiCall("save", { puts: puts, dels: dels })
-      .then(function () { SYNC_ERR = ""; })
-      .catch(function (err) { SYNC_ERR = err.message || "Sync failed"; })
-      .then(function () { PENDING--; });
+      .then(function () { SYNC_ERR = ""; return { ok: true }; })
+      .catch(function (err) { SYNC_ERR = err.message || "Sync failed"; return { ok: false, error: err.message || "Save failed" }; })
+      .then(function (res) { PENDING--; return res; });
     return pr;
   }
-  return Promise.resolve();
+  return Promise.resolve({ ok: true });
 }
 
 // IDs are derived from the live shared snapshot (max existing number + 1)
@@ -262,9 +264,12 @@ function maxNum(list, prefix) {
 }
 function staffId() { return "STF" + String(maxNum(CACHE.staff, "STF") + 1).padStart(4, "0"); }
 function custId() { return "ACC" + String(maxNum(CACHE.customers, "ACC") + 1).padStart(4, "0"); }
-function complaintId() {
+function complaintId(bump) {
+  // Uses the GLOBAL sequence from the server, not just this user's visible
+  // complaints — otherwise two customers generate the same number.
   const pre = "JM-" + new Date().getFullYear() + "-";
-  return pre + String(maxNum(CACHE.complaints, pre) + 1).padStart(4, "0");
+  const n = Math.max(maxNum(CACHE.complaints, pre), SERVER_SEQ.complaint || 0) + 1 + (bump || 0);
+  return pre + String(n).padStart(4, "0");
 }
 function newRoute() { return ROUTE_STAGES.map(function (n) { return { n: n, s: "P" }; }); }
 function quoteId() {
@@ -380,7 +385,7 @@ const DEFAULT_BRAND = {
   phone: "+91 97799 40573",
   gstin: "",
   timing: "Material collection: 9:00 AM \u2013 5:00 PM (Lunch 1:00 \u2013 1:30 PM)",
-  fb: "", ig: "", yt: "", terms: ""
+  fb: "", ig: "", yt: "", li: "", web: "", map: "", terms: ""
 };
 const BRAND_PRESETS = [
   ["Steel & teal", "#16212f", "#0e7490"],
@@ -392,7 +397,7 @@ const BRAND_PRESETS = [
 let BRAND = Object.assign({}, DEFAULT_BRAND);
 function normBrand(b) {
   const o = Object.assign({}, DEFAULT_BRAND);
-  if (b && typeof b === "object") ["company", "short", "tagline", "sidebar", "accent", "logo", "address", "phone", "gstin", "timing", "fb", "ig", "yt", "terms"].forEach(function (k) { if (b[k] !== undefined && b[k] !== null && b[k] !== "") o[k] = b[k]; else if (b[k] === "" && ["gstin", "fb", "ig", "yt", "terms"].indexOf(k) >= 0) o[k] = ""; });
+  if (b && typeof b === "object") ["company", "short", "tagline", "sidebar", "accent", "logo", "address", "phone", "gstin", "timing", "fb", "ig", "yt", "li", "web", "map", "terms"].forEach(function (k) { if (b[k] !== undefined && b[k] !== null && b[k] !== "") o[k] = b[k]; else if (b[k] === "" && ["gstin", "fb", "ig", "yt", "li", "web", "map", "terms"].indexOf(k) >= 0) o[k] = ""; });
   return o;
 }
 function applyBrand(b) {
@@ -1796,16 +1801,36 @@ function NewComplaint(p) {
 
   function submit() {
     if (!desc.trim() || !coId || !mId || submitting) return;
-    setSubmitting(true);
-    const c = {
-      id: complaintId(), customerId: user.id, companyId: coId, machineId: mId,
-      type: type, priority: priority, desc: desc.trim(), status: "Open",
-      route: newRoute(), messages: [], notes: [], attachments: [], assignedTo: null, assignedAt: null,
-      targetDate: null, rating: null, createdAt: Date.now(), closedAt: null
-    };
-    db.complaints.unshift(c);
-    logAct(db, user.name, "customer", user.name + " raised complaint " + c.id + " (" + type + ")");
-    const saved = saveDB(db, ["complaints", "activity"]);
+    setSubmitting(true); setUpErr("");
+    // Create with a globally-unique number; if two customers race for the
+    // same number, the server rejects with ID_CONFLICT and we retry fresh.
+    function attemptCreate(tryNo) {
+      const db2 = loadDB();
+      const c2 = {
+        id: complaintId(), customerId: user.id, companyId: coId, machineId: mId,
+        type: type, priority: priority, desc: desc.trim(), status: "Open",
+        route: newRoute(), messages: [], notes: [], attachments: [], assignedTo: null, assignedAt: null,
+        targetDate: null, rating: null, createdAt: Date.now(), closedAt: null
+      };
+      db2.complaints.unshift(c2);
+      logAct(db2, user.name, "customer", user.name + " raised complaint " + c2.id + " (" + type + ")");
+      return saveDB(db2, ["complaints", "activity"]).then(function (res) {
+        if (res && res.ok) return c2;
+        // roll back the phantom row and resync truth from the server
+        return apiCall("load").then(function (j) { adoptSnapshot(j.snapshot); }).catch(function () {}).then(function () {
+          if (tryNo < 3 && /ID_CONFLICT/i.test((res && res.error) || "")) return attemptCreate(tryNo + 1);
+          throw new Error((res && res.error) || "Save failed");
+        });
+      });
+    }
+    attemptCreate(0).then(function (c) {
+      afterCreated(c);
+    }, function (err) {
+      setSubmitting(false);
+      setUpErr("Your complaint could NOT be submitted (" + err.message + "). Nothing was lost — your description and photos are still below. Please press Submit again, and contact JUGMUG if it repeats.");
+    });
+  }
+  function afterCreated(c) {
     const files = pending.slice();
     if (!files.length) {
       setSubmitting(false); setMade(c.id); setDesc(""); setPending([]);
@@ -1828,7 +1853,7 @@ function NewComplaint(p) {
         failed.push(att.name);
       });
     }
-    let chain = saved;
+    let chain = Promise.resolve();
     files.forEach(function (att) { chain = chain.then(function () { return uploadOne(att, 1); }); });
     chain.then(function () {
       setSubmitting(false); setMade(c.id); setDesc(""); setPending([]);
@@ -1900,10 +1925,13 @@ function BrandingPage(p) {
   const [fb, setFb] = useState(saved.fb);
   const [ig, setIg] = useState(saved.ig);
   const [yt, setYt] = useState(saved.yt);
+  const [li, setLi] = useState(saved.li);
+  const [web, setWeb] = useState(saved.web);
+  const [gmap, setGmap] = useState(saved.map);
   const [msg, setMsg] = useState("");
   const logoRef = useRef(null);
   const draft = { company: company, short: short, tagline: tagline, sidebar: sidebar, accent: accent, logo: logo,
-    address: addr, phone: phone, gstin: gstin.trim(), timing: timing, fb: fb.trim(), ig: ig.trim(), yt: yt.trim(), terms: saved.terms };
+    address: addr, phone: phone, gstin: gstin.trim(), timing: timing, fb: fb.trim(), ig: ig.trim(), yt: yt.trim(), li: li.trim(), web: web.trim(), map: gmap.trim(), terms: saved.terms };
 
   function onLogo(ev) {
     const f = ev.target.files && ev.target.files[0];
@@ -1970,7 +1998,10 @@ function BrandingPage(p) {
         e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 } },
           e(Field, { label: "Facebook page link" }, e("input", { style: INPUT_S, value: fb, onChange: function (ev) { setFb(ev.target.value); } })),
           e(Field, { label: "Instagram page link" }, e("input", { style: INPUT_S, value: ig, onChange: function (ev) { setIg(ev.target.value); } })),
-          e(Field, { label: "YouTube channel link" }, e("input", { style: INPUT_S, value: yt, onChange: function (ev) { setYt(ev.target.value); } }))),
+          e(Field, { label: "YouTube channel link" }, e("input", { style: INPUT_S, value: yt, onChange: function (ev) { setYt(ev.target.value); } })),
+          e(Field, { label: "LinkedIn page link" }, e("input", { style: INPUT_S, value: li, onChange: function (ev) { setLi(ev.target.value); } })),
+          e(Field, { label: "Website link" }, e("input", { style: INPUT_S, value: web, onChange: function (ev) { setWeb(ev.target.value); } })),
+          e(Field, { label: "Google location link" }, e("input", { style: INPUT_S, value: gmap, onChange: function (ev) { setGmap(ev.target.value); } }))),
         e("div", { style: { fontSize: 12, color: C.mute } }, "Only links you fill here appear on the customer's Follow Us page. Save branding to publish.")),
       e(Card, null,
         e(SectionTitle, { title: "Live preview" }),
@@ -2291,9 +2322,12 @@ function TermsPage(p) {
 function FollowPage(p) {
   const b = normBrand(p.db.branding || BRAND);
   const links = [
-    ["Facebook", b.fb, "#1877f2", "f"],
-    ["Instagram", b.ig, "#c13584", "\u25CE"],
-    ["YouTube", b.yt, "#ff0000", "\u25B6"]
+    ["Facebook", b.fb, "#1877f2", "f", "Follow us on Facebook"],
+    ["Instagram", b.ig, "#c13584", "\u25CE", "Follow us on Instagram"],
+    ["YouTube", b.yt, "#ff0000", "\u25B6", "Watch us on YouTube"],
+    ["LinkedIn", b.li, "#0a66c2", "in", "Connect on LinkedIn"],
+    ["Our Website", b.web, "#0e7490", "\u2318", "Visit our website"],
+    ["Factory Location", b.map, "#34a853", "\u2316", "Open in Google Maps \u00B7 " + (b.address || "")]
   ].filter(function (l) { return l[1]; });
   return e(Card, null,
     e(SectionTitle, { title: "Stay connected with " + BRAND.company }),
@@ -2306,7 +2340,7 @@ function FollowPage(p) {
           e("span", { style: { width: 42, height: 42, borderRadius: 10, background: l[2], color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 800 } }, l[3]),
           e("span", null,
             e("b", { style: { display: "block", color: C.text, fontSize: 15 } }, l[0]),
-            e("span", { style: { fontSize: 12, color: C.mute } }, "Follow us on " + l[0])));
+            e("span", { style: { fontSize: 12, color: C.mute } }, l[4])));
       })) : e("div", { style: { fontSize: 13, color: C.mute } }, "Our social pages are being set up \u2014 links will appear here soon."),
     e("div", { style: { fontSize: 12, color: C.mute, marginTop: 14 } }, "Latest machines, maintenance tips and factory updates \u2014 straight from " + BRAND.company + "."));
 }
