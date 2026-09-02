@@ -125,7 +125,7 @@ const { useState, useEffect, useRef } = React;
 const e = React.createElement;
 
 // ================= CONFIG =================
-const APP_VERSION = "9.1.1";
+const APP_VERSION = "9.3.0";
 const PRIORITIES = ["Low", "Medium", "High", "Critical"];
 const STATUSES = ["Open", "In Progress", "Resolved", "Closed"];
 const ROUTE_STAGES = [
@@ -183,7 +183,7 @@ const K = {
 const API_URL = (typeof window !== "undefined" && window.__SD_API_URL) ||
   "https://nppfrpqlipihrfvzeegx.supabase.co/functions/v1/service-desk";
 
-function emptyDB() { return { admin: { password: "" }, branding: null, staff: [], customers: [], complaints: [], activity: [], feedback: [], sops: [] }; }
+function emptyDB() { return { admin: { password: "" }, branding: null, staff: [], customers: [], complaints: [], activity: [], feedback: [], sops: [], quotes: [] }; }
 function deepCopy(o) { return JSON.parse(JSON.stringify(o)); }
 
 let CACHE = emptyDB();               // client working copy (source for loadDB)
@@ -203,7 +203,7 @@ async function apiCall(action, payload) {
 
 function adoptSnapshot(snap) {
   const base = emptyDB();
-  ["staff", "customers", "complaints", "activity", "feedback", "sops"].forEach(function (k) { if (snap[k]) base[k] = snap[k]; });
+  ["staff", "customers", "complaints", "activity", "feedback", "sops", "quotes"].forEach(function (k) { if (snap[k]) base[k] = snap[k]; });
   if (snap.admin) base.admin = snap.admin;
   if (snap.branding) { base.branding = snap.branding; applyBrand(snap.branding); Store.set("jm8_brand", normBrand(snap.branding)); }
   CACHE = base;
@@ -213,7 +213,7 @@ function adoptSnapshot(snap) {
 function loadDB() { return deepCopy(CACHE); }
 
 function saveDB(db, keys) {
-  const names = (keys || ["admin", "branding", "staff", "customers", "complaints", "activity", "feedback", "sops"])
+  const names = (keys || ["admin", "branding", "staff", "customers", "complaints", "activity", "feedback", "sops", "quotes"])
     .filter(function (n) { return n !== "session" && n !== "seq"; });
   const puts = [], dels = [];
   names.forEach(function (name) {
@@ -267,6 +267,10 @@ function complaintId() {
   return pre + String(maxNum(CACHE.complaints, pre) + 1).padStart(4, "0");
 }
 function newRoute() { return ROUTE_STAGES.map(function (n) { return { n: n, s: "P" }; }); }
+function quoteId() {
+  const pre = "QT-" + new Date().getFullYear() + "-";
+  return pre + String(maxNum(CACHE.quotes, pre) + 1).padStart(4, "0");
+}
 function uid() { return Math.random().toString(36).slice(2, 9) + Date.now().toString(36); }
 
 function logAct(db, by, role, text) {
@@ -370,7 +374,14 @@ function AttachControl(p) {
 }
 
 // ================= BRANDING (admin-set, applies for every user) =================
-const DEFAULT_BRAND = { company: "JUGMUG Rollforming", short: "JUGMUG Rollforming", tagline: "Service Desk", sidebar: "#16212f", accent: "#0e7490", logo: null };
+const DEFAULT_BRAND = {
+  company: "JUGMUG Roll forming", short: "JUGMUG Rollforming", tagline: "Service Desk", sidebar: "#16212f", accent: "#0e7490", logo: null,
+  address: "Plot No-26, Industrial Estate Phase 1, Bhagwanpura, Ludhiana, Punjab 141206",
+  phone: "+91 97799 40573",
+  gstin: "",
+  timing: "Material collection: 9:00 AM \u2013 5:00 PM (Lunch 1:00 \u2013 1:30 PM)",
+  fb: "", ig: "", yt: "", terms: ""
+};
 const BRAND_PRESETS = [
   ["Steel & teal", "#16212f", "#0e7490"],
   ["Ink & orange", "#1a1c22", "#c2410c"],
@@ -381,7 +392,7 @@ const BRAND_PRESETS = [
 let BRAND = Object.assign({}, DEFAULT_BRAND);
 function normBrand(b) {
   const o = Object.assign({}, DEFAULT_BRAND);
-  if (b && typeof b === "object") ["company", "short", "tagline", "sidebar", "accent", "logo"].forEach(function (k) { if (b[k]) o[k] = b[k]; });
+  if (b && typeof b === "object") ["company", "short", "tagline", "sidebar", "accent", "logo", "address", "phone", "gstin", "timing", "fb", "ig", "yt", "terms"].forEach(function (k) { if (b[k] !== undefined && b[k] !== null && b[k] !== "") o[k] = b[k]; else if (b[k] === "" && ["gstin", "fb", "ig", "yt", "terms"].indexOf(k) >= 0) o[k] = ""; });
   return o;
 }
 function applyBrand(b) {
@@ -421,7 +432,25 @@ function delayDays(c) {
   const d = daysBetween(new Date(c.targetDate + "T00:00:00").getTime(), ref);
   return d > 0 ? d : 0;
 }
+// Calendar days until (positive) or past (negative) a yyyy-mm-dd target — live
+function balanceDays(targetDate) {
+  if (!targetDate) return null;
+  const t = new Date(targetDate + "T00:00:00").getTime();
+  const n = new Date();
+  const today = new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
+  return Math.round((t - today) / 86400000);
+}
+const DEPARTMENTS = ["Store", "Design", "VMC", "CNC", "Accounts"];
+function deptOf(db, user) {
+  if (!user || user.role !== "staff") return null;
+  const s = db.staff.find(function (x) { return x.id === user.id; });
+  return (s && s.department) || null;
+}
 function staffName(db, id) { const s = db.staff.find(function (x) { return x.id === id; }); return s ? s.name : (id || "Unassigned"); }
+function staffLabel(db, id) {
+  const s = db.staff.find(function (x) { return x.id === id; });
+  return s ? (s.name + (s.department ? " · " + s.department : "")) : (id || "—");
+}
 function custName(db, id) { const s = db.customers.find(function (x) { return x.id === id; }); return s ? s.name : id; }
 function fileSizeStr(n) { return n > 1048576 ? (n / 1048576).toFixed(2) + " MB" : Math.round(n / 1024) + " KB"; }
 
@@ -554,11 +583,27 @@ function RouteStrip(p) {
     }));
 }
 function DelayBadge(p) {
-  const d = delayDays(p.c);
-  if (p.c.targetDate == null || p.c.targetDate === "") return e("span", { style: { color: C.mute, fontSize: 12 } }, "—");
-  if (d === null) return e("span", { style: { color: C.mute, fontSize: 12 } }, "—");
-  if (d > 0) return e(Pill, { text: "Delayed " + d + "d", tone: "p-late" });
-  return e(Pill, { text: "On time", tone: "p-ok" });
+  const c = p.c;
+  if (!c.targetDate) return e("span", { style: { color: C.mute, fontSize: 12 } }, "—");
+  if (c.status === "Closed") {
+    const d = delayDays(c);
+    return d > 0 ? e(Pill, { text: "Closed " + d + "d late", tone: "p-late" }) : e(Pill, { text: "On time", tone: "p-ok" });
+  }
+  const b = balanceDays(c.targetDate); // live: >0 days left, <=0 overdue
+  if (b > 2) return e(Pill, { text: b + "d left", tone: "p-ok" });
+  if (b > 0) return e(Pill, { text: b + "d left", tone: "p-warn" });
+  if (b === 0) return e(Pill, { text: "Due today", tone: "p-warn" });
+  return e(Pill, { text: "Delayed " + (-b) + "d", tone: "p-late" });
+}
+// Small live badge for department tasks
+function TaskBadge(p) {
+  const t = p.t;
+  if (t.status === "Done") return e(Pill, { text: "Done", tone: "p-ok" });
+  if (!t.targetDate) return e(Pill, { text: t.status, tone: t.status === "In progress" ? "p-warn" : "p-mute" });
+  const b = balanceDays(t.targetDate);
+  if (b < 0) return e(Pill, { text: "Delayed " + (-b) + "d", tone: "p-late" });
+  if (b === 0) return e(Pill, { text: "Due today", tone: "p-warn" });
+  return e(Pill, { text: b + "d left", tone: b > 2 ? "p-ok" : "p-warn" });
 }
 
 // ================= LOGIN =================
@@ -610,7 +655,7 @@ function Login(p) {
         tabBtn("staff", "Sales Service Staff", teamTab, setTeamTab),
         tabBtn("admin", "Admin", teamTab, setTeamTab)) : null,
       (tab === "customer" || teamTab === "staff") ? e(Field, { label: tab === "customer" ? "Customer ID (e.g. ACC0001)" : "Staff ID (e.g. STF0001)" },
-        e("input", { style: INPUT_S, value: id, placeholder: tab === "customer" ? "ACC0001" : "STF0001", onChange: function (ev) { setId(ev.target.value); } })) : null,
+        e("input", { style: INPUT_S, value: id, onChange: function (ev) { setId(ev.target.value); } })) : null,
       e(Field, { label: "Password" },
         e("input", { style: INPUT_S, type: "password", value: pw, onChange: function (ev) { setPw(ev.target.value); }, onKeyDown: function (ev) { if (ev.key === "Enter") doLogin(); } })),
       err ? e("div", { className: "err" }, err) : null,
@@ -630,7 +675,7 @@ function PasswordModal(p) {
   }
   return e(Modal, { title: p.title || "Reset password", onClose: p.onClose, width: 420 },
     p.subtitle ? e("div", { style: { fontSize: 13, color: C.mute, marginBottom: 12 } }, p.subtitle) : null,
-    e(Field, { label: "New password" }, e("input", { style: INPUT_S, type: "text", value: pw1, onChange: function (ev) { setPw1(ev.target.value); }, placeholder: "Type an easy password" })),
+    e(Field, { label: "New password" }, e("input", { style: INPUT_S, type: "text", value: pw1, onChange: function (ev) { setPw1(ev.target.value); } })),
     e(Field, { label: "Confirm new password" }, e("input", { style: INPUT_S, type: "text", value: pw2, onChange: function (ev) { setPw2(ev.target.value); } })),
     err ? e("div", { style: { color: C.red, fontSize: 13, marginBottom: 10, fontWeight: 600 } }, err) : null,
     e("div", { style: { display: "flex", gap: 8, justifyContent: "flex-end" } },
@@ -645,8 +690,13 @@ function ComplaintModal(p) {
   const [msg, setMsg] = useState("");
   const [note, setNote] = useState("");
   const [confirmDel, setConfirmDel] = useState(false);
+  const [taskDept, setTaskDept] = useState("");
+  const [taskText, setTaskText] = useState("");
+  const [taskDate, setTaskDate] = useState("");
   if (!c) return null;
   const isTeam = user.role === "admin" || user.role === "staff";
+  const myDept = deptOf(db, user);            // "Store"/"Design"/… when this login is a department account
+  const canManage = isTeam && !myDept;        // sales staff + admin manage route/status; departments manage only their tasks
   const cust = db.customers.find(function (x) { return x.id === c.customerId; });
   const comp = cust && (cust.companies || []).find(function (x) { return x.id === c.companyId; });
   const mach = comp && (comp.machines || []).find(function (x) { return x.id === c.machineId; });
@@ -658,7 +708,7 @@ function ComplaintModal(p) {
     p.refresh();
   }
   function cycleStage(i) {
-    if (!isTeam) return;
+    if (!canManage) return;
     const order = ["P", "I", "D", "N"];
     mutate(function (cc) {
       const cur = cc.route[i].s;
@@ -679,6 +729,36 @@ function ComplaintModal(p) {
   }
   function setTarget(v) {
     mutate(function (cc) { cc.targetDate = v || null; }, v ? "Admin set delivery target " + v + " on " + c.id : null);
+  }
+  function addTask() {
+    const t = taskText.trim(); if (!t || !taskDept) return;
+    const d = db.staff.find(function (x) { return x.id === taskDept; });
+    mutate(function (cc) {
+      cc.deptTasks = (cc.deptTasks || []).concat([{
+        id: uid(), deptId: taskDept, dept: (d && d.department) || "", text: t,
+        targetDate: taskDate || null, status: "Pending", by: user.name, at: Date.now(), doneAt: null
+      }]);
+    }, user.name + " assigned a " + ((d && d.department) || "department") + " task on " + c.id + (taskDate ? " (target " + taskDate + ")" : ""));
+    setTaskText(""); setTaskDate(""); setTaskDept("");
+  }
+  function advanceTask(t) {
+    const nextS = t.status === "Pending" ? "In progress" : "Done";
+    mutate(function (cc) {
+      const row = (cc.deptTasks || []).find(function (x) { return x.id === t.id; });
+      if (!row) return;
+      row.status = nextS;
+      row.doneAt = nextS === "Done" ? Date.now() : null;
+    }, user.name + (nextS === "Done" ? " completed" : " started") + " " + (t.dept || "department") + " task on " + c.id);
+  }
+  function reopenTask(t) {
+    mutate(function (cc) {
+      const row = (cc.deptTasks || []).find(function (x) { return x.id === t.id; });
+      if (row) { row.status = "Pending"; row.doneAt = null; }
+    }, user.name + " reopened a " + (t.dept || "department") + " task on " + c.id);
+  }
+  function removeTask(t) {
+    mutate(function (cc) { cc.deptTasks = (cc.deptTasks || []).filter(function (x) { return x.id !== t.id; }); },
+      user.name + " removed a " + (t.dept || "department") + " task from " + c.id);
   }
   function sendMsg() {
     const t = msg.trim(); if (!t) return;
@@ -750,7 +830,7 @@ function ComplaintModal(p) {
           e("input", { style: INPUT_S, type: "date", value: c.targetDate || "", onChange: function (ev) { setTarget(ev.target.value); } }))))) : null,
 
     e(Card, { style: { marginBottom: 14 } },
-      e(SectionTitle, { title: "Service route — " + pct + "% complete", right: isTeam ? e("span", { style: { fontSize: 12, color: C.mute } }, "Tap a stage to cycle: Pending → In progress → Done → N/A") : null }),
+      e(SectionTitle, { title: "Service route — " + pct + "% complete", right: canManage ? e("span", { style: { fontSize: 12, color: C.mute } }, "Tap a stage to cycle: Pending → In progress → Done → N/A") : null }),
       e("div", { style: { background: "#e6ebf2", borderRadius: 6, height: 8, marginBottom: 12 } },
         e("div", { style: { width: pct + "%", background: C.green, height: 8, borderRadius: 6 } })),
       e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 8 } },
@@ -758,13 +838,39 @@ function ComplaintModal(p) {
           const lbl = { P: "Pending", I: "In progress", D: "Done", N: "N/A" }[r.s];
           return e("div", {
             key: i, onClick: function () { cycleStage(i); },
-            style: { border: "1px solid " + C.line, borderLeft: "4px solid " + RS_COLOR[r.s], borderRadius: 8, padding: "8px 10px", cursor: isTeam ? "pointer" : "default", background: "#fff", opacity: r.s === "N" ? 0.55 : 1 }
+            style: { border: "1px solid " + C.line, borderLeft: "4px solid " + RS_COLOR[r.s], borderRadius: 8, padding: "8px 10px", cursor: canManage ? "pointer" : "default", background: "#fff", opacity: r.s === "N" ? 0.55 : 1 }
           },
             e("div", { style: { fontSize: 12, fontWeight: 700, color: C.text } }, (i + 1) + ". " + r.n),
             e("div", { style: { fontSize: 11, color: r.s === "D" ? C.green : r.s === "I" ? C.amber : C.mute, fontWeight: 600 } }, lbl));
         }))),
 
-    isTeam ? e(Card, { style: { marginBottom: 14 } },
+    isTeam ? e(Card, { style: { marginBottom: 14, background: C.blueBg, borderColor: "#bfdbf0" } },
+      e(SectionTitle, { title: "Department tasks" + ((c.deptTasks || []).length ? " (" + c.deptTasks.length + ")" : "") }),
+      (c.deptTasks || []).length ? (c.deptTasks || []).map(function (t) {
+        const canAdvance = t.status !== "Done" && (user.role === "admin" || (myDept && t.deptId === user.id));
+        return e("div", { key: t.id, style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "8px 0", borderBottom: "1px solid " + (isTeam ? "#d3e3f0" : C.canvas) } },
+          e(Pill, { text: t.dept || "Dept", tone: "p-pri" }),
+          e("span", { style: { flex: "1 1 200px", fontSize: 13 } }, t.text),
+          t.targetDate ? e("span", { style: { fontSize: 11, color: C.mute } }, "Target " + fmtDate(new Date(t.targetDate + "T00:00:00").getTime())) : null,
+          e(TaskBadge, { t: t }),
+          t.status === "Done" && t.doneAt ? e("span", { style: { fontSize: 11, color: C.green, fontWeight: 600 } }, "✓ " + fmtDT(t.doneAt)) : null,
+          canAdvance ? e(Btn, { small: true, kind: t.status === "Pending" ? "primary" : "accent", onClick: function () { advanceTask(t); }, label: t.status === "Pending" ? "Start" : "Mark done" }) : null,
+          user.role === "admin" && t.status === "Done" ? e(Btn, { small: true, kind: "ghost", onClick: function () { reopenTask(t); }, label: "Reopen" }) : null,
+          user.role === "admin" ? e("button", { onClick: function () { removeTask(t); }, title: "Remove task", style: { color: C.red, fontSize: 13, fontWeight: 700 } }, "✕") : null);
+      }) : e("div", { style: { fontSize: 13, color: C.mute } }, "No department tasks yet."),
+      canManage ? e("div", { style: { display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginTop: 10 } },
+        e("div", { style: { flex: "1 1 170px" } }, e(Field, { label: "Assign to department" },
+          e("select", { style: INPUT_S, value: taskDept, onChange: function (ev) { setTaskDept(ev.target.value); } },
+            e("option", { value: "" }, "— Select department —"),
+            db.staff.filter(function (x) { return x.department && x.active !== false; }).map(function (x) { return e("option", { key: x.id, value: x.id }, x.department + " — " + x.name + " (" + x.id + ")"); })))),
+        e("div", { style: { flex: "2 1 220px" } }, e(Field, { label: "Task / instruction" },
+          e("input", { style: INPUT_S, value: taskText, onChange: function (ev) { setTaskText(ev.target.value); } }))),
+        e("div", { style: { flex: "1 1 140px" } }, e(Field, { label: "Target date" },
+          e("input", { style: INPUT_S, type: "date", value: taskDate, onChange: function (ev) { setTaskDate(ev.target.value); } }))),
+        e(Btn, { onClick: addTask, disabled: !taskText.trim() || !taskDept, label: "Assign task" })) : null,
+      canManage && !db.staff.some(function (x) { return x.department && x.active !== false; }) ? e("div", { style: { fontSize: 12, color: C.mute, marginTop: 6 } }, "No department accounts yet — admin can create them under Staff Accounts by choosing a department.") : null) : null,
+
+    canManage ? e(Card, { style: { marginBottom: 14 } },
       e(SectionTitle, { title: "Status & priority" }),
       e("div", { style: { display: "flex", gap: 12, flexWrap: "wrap" } },
         e("div", { style: { flex: "1 1 180px" } }, e(Field, { label: "Status" }, e(Sel, { value: c.status, onChange: function (ev) { setStatus(ev.target.value); }, options: STATUSES }))),
@@ -880,7 +986,7 @@ function applyFilters(list, q, status, staffFilter, db) {
 
 // ================= TEAM PERFORMANCE =================
 function perfRows(db) {
-  return db.staff.map(function (s) {
+  return db.staff.filter(function (s) { return !s.department; }).map(function (s) {
     const mine = db.complaints.filter(function (c) { return c.assignedTo === s.id; });
     const closed = mine.filter(function (c) { return c.status === "Closed"; });
     const withTarget = closed.filter(function (c) { return c.targetDate; });
@@ -987,15 +1093,28 @@ function StaffAccounts(p) {
   const [editId, setEditId] = useState(null);
   const [editName, setEditName] = useState("");
   const [pwFor, setPwFor] = useState(null);
+  const [dept, setDept] = useState("");
+  const [delFor, setDelFor] = useState(null);
 
   function create() {
     if (!name.trim()) return;
-    const s = { id: staffId(), name: name.trim(), phone: phone.trim(), password: pw.trim() || Math.random().toString(36).slice(2, 8), active: true, createdAt: Date.now() };
+    const s = { id: staffId(), name: name.trim(), phone: phone.trim(), department: dept || undefined, password: pw.trim() || Math.random().toString(36).slice(2, 8), active: true, createdAt: Date.now() };
     db.staff.push(s);
-    logAct(db, "Admin", "admin", "Admin created staff account " + s.id + " (" + s.name + ")");
+    logAct(db, "Admin", "admin", "Admin created " + (dept ? dept + " department" : "staff") + " account " + s.id + " (" + s.name + ")");
     saveDB(db, ["staff", "activity"]);
-    setMade(s); setName(""); setPhone(""); setPw("");
+    setMade(s); setName(""); setPhone(""); setPw(""); setDept("");
     p.refresh();
+  }
+  function removeStaff(st) {
+    const db2 = loadDB();
+    let unassigned = 0;
+    db2.complaints.forEach(function (c) {
+      if (c.assignedTo === st.id && c.status !== "Closed") { c.assignedTo = null; c.assignedAt = null; unassigned++; }
+    });
+    db2.staff = db2.staff.filter(function (x) { return x.id !== st.id; });
+    logAct(db2, "Admin", "admin", "Admin deleted staff account " + st.id + " (" + st.name + ")" + (unassigned ? " — " + unassigned + " open complaint(s) set to Unassigned" : ""));
+    saveDB(db2, ["staff", "complaints", "activity"]);
+    setDelFor(null); p.refresh();
   }
   function saveEdit(s) {
     const nn = editName.trim(); if (!nn) return;
@@ -1015,7 +1134,10 @@ function StaffAccounts(p) {
       e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 } },
         e(Field, { label: "Full name" }, e("input", { style: INPUT_S, value: name, onChange: function (ev) { setName(ev.target.value); } })),
         e(Field, { label: "Phone (optional)" }, e("input", { style: INPUT_S, value: phone, onChange: function (ev) { setPhone(ev.target.value); } })),
-        e(Field, { label: "Password (blank = auto)" }, e("input", { style: INPUT_S, value: pw, onChange: function (ev) { setPw(ev.target.value); } }))),
+        e(Field, { label: "Password (blank = auto)" }, e("input", { style: INPUT_S, value: pw, onChange: function (ev) { setPw(ev.target.value); } })),
+        e(Field, { label: "Department" }, e("select", { style: INPUT_S, value: dept, onChange: function (ev) { setDept(ev.target.value); } },
+          e("option", { value: "" }, "Sales service (default)"),
+          DEPARTMENTS.map(function (d) { return e("option", { key: d, value: d }, d + " department"); })))),
       e(Btn, { kind: "accent", onClick: create, label: "Create staff account" }),
       made ? e("div", { style: { marginTop: 12, padding: 12, background: C.greenBg, borderRadius: 8, fontSize: 14 } },
         e("b", null, "Created! "), "ID: ", e("b", null, made.id), " · Password: ", e("b", null, made.password), " — share these with the staff member.") : null),
@@ -1027,12 +1149,19 @@ function StaffAccounts(p) {
           editId === s.id
             ? e("input", { style: Object.assign({}, INPUT_S, { maxWidth: 200 }), value: editName, onChange: function (ev) { setEditName(ev.target.value); } })
             : e("span", { style: { flex: "1 1 140px" } }, s.name + (s.phone ? " · " + s.phone : "")),
+          s.department ? e(Pill, { text: s.department, tone: "p-pri" }) : null,
           e(Pill, { text: s.active === false ? "Disabled" : "Active", tone: s.active === false ? "p-late" : "p-ok" }),
           editId === s.id
             ? e(Btn, { small: true, onClick: function () { saveEdit(s); }, label: "Save" })
             : e(Btn, { small: true, kind: "ghost", onClick: function () { setEditId(s.id); setEditName(s.name); }, label: "Edit" }),
           e(Btn, { small: true, kind: "ghost", onClick: function () { setPwFor(s); }, label: "Reset password" }),
-          e(Btn, { small: true, kind: s.active === false ? "primary" : "danger", onClick: function () { toggle(s); }, label: s.active === false ? "Enable" : "Disable" }));
+          e(Btn, { small: true, kind: s.active === false ? "primary" : "danger", onClick: function () { toggle(s); }, label: s.active === false ? "Enable" : "Disable" }),
+          delFor === s.id
+            ? e("span", { style: { display: "inline-flex", gap: 8, alignItems: "center" } },
+                e("b", { style: { fontSize: 12, color: C.red } }, "Delete permanently?"),
+                e(Btn, { small: true, kind: "danger", onClick: function () { removeStaff(s); }, label: "Yes, delete" }),
+                e(Btn, { small: true, kind: "ghost", onClick: function () { setDelFor(null); }, label: "Cancel" }))
+            : e(Btn, { small: true, kind: "danger", onClick: function () { setDelFor(s.id); }, label: "Delete" }));
       }) : e("div", { style: { fontSize: 13, color: C.mute } }, "No staff yet — create the first account above."),
       pwFor ? e(PasswordModal, {
         title: "Reset password — " + pwFor.name + " (" + pwFor.id + ")",
@@ -1057,10 +1186,31 @@ function CustomerAccounts(p) {
   const emptyCo = function () { return { id: uid(), name: "", address: "", machines: [{ id: uid(), code: "", model: "" }] }; };
   const [name, setName] = useState("");
   const [pw, setPw] = useState("");
+  const [gstin, setGstin] = useState("");
   const [cos, setCos] = useState([emptyCo()]);
   const [made, setMade] = useState(null);
   const [pwFor, setPwFor] = useState(null);
   const [editFor, setEditFor] = useState(null);
+  const [delCust, setDelCust] = useState(null);
+
+  function toggleCust(cu) {
+    const db2 = loadDB();
+    const row = db2.customers.find(function (x) { return x.id === cu.id; });
+    if (!row) return;
+    row.active = row.active === false;
+    logAct(db2, user.name, "admin", "Admin " + (row.active ? "enabled" : "disabled") + " customer " + cu.id + " (" + cu.name + ")");
+    saveDB(db2, ["customers", "activity"]);
+    p.refresh();
+  }
+  function removeCust(cu) {
+    const db2 = loadDB();
+    const has = db2.complaints.some(function (c) { return c.customerId === cu.id; });
+    if (has) { setDelCust(null); return; }
+    db2.customers = db2.customers.filter(function (x) { return x.id !== cu.id; });
+    logAct(db2, user.name, "admin", "Admin deleted customer account " + cu.id + " (" + cu.name + ")");
+    saveDB(db2, ["customers", "activity"]);
+    setDelCust(null); p.refresh();
+  }
 
   function upCo(i, k, v) { const n = cos.slice(); n[i] = Object.assign({}, n[i]); n[i][k] = v; setCos(n); }
   function upM(i, j, k, v) {
@@ -1073,11 +1223,11 @@ function CustomerAccounts(p) {
       return { id: co.id, name: co.name.trim(), address: co.address.trim(), machines: co.machines.filter(function (m) { return m.code.trim(); }).map(function (m) { return { id: m.id, code: m.code.trim(), model: m.model.trim() }; }) };
     });
     if (!companies.length) return;
-    const cu = { id: custId(), name: name.trim(), password: pw.trim() || Math.random().toString(36).slice(2, 8), companies: companies, createdAt: Date.now(), createdBy: user.id };
+    const cu = { id: custId(), name: name.trim(), gstin: gstin.trim(), password: pw.trim() || Math.random().toString(36).slice(2, 8), companies: companies, createdAt: Date.now(), createdBy: user.id };
     db.customers.push(cu);
     logAct(db, user.name, user.role, user.name + " created customer account " + cu.id + " (" + cu.name + ")");
     saveDB(db, ["customers", "activity"]);
-    setMade(cu); setName(""); setPw(""); setCos([emptyCo()]);
+    setMade(cu); setName(""); setPw(""); setGstin(""); setCos([emptyCo()]);
     p.refresh();
   }
   return e("div", null,
@@ -1085,6 +1235,7 @@ function CustomerAccounts(p) {
       e(SectionTitle, { title: "Create customer account" + (user.role === "admin" ? " (admin can add directly)" : "") }),
       e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 } },
         e(Field, { label: "Customer / contact name" }, e("input", { style: INPUT_S, value: name, onChange: function (ev) { setName(ev.target.value); } })),
+        e(Field, { label: "Customer GST number (optional)" }, e("input", { style: INPUT_S, value: gstin, onChange: function (ev) { setGstin(ev.target.value); } })),
         e(Field, { label: "Password (blank = auto)" }, e("input", { style: INPUT_S, value: pw, onChange: function (ev) { setPw(ev.target.value); } }))),
       cos.map(function (co, i) {
         return e("div", { key: co.id, style: { border: "1px dashed " + C.line, borderRadius: 10, padding: 12, marginBottom: 10, background: C.canvas } },
@@ -1094,8 +1245,8 @@ function CustomerAccounts(p) {
           e("div", { style: { fontSize: 12, fontWeight: 700, color: C.mute, textTransform: "uppercase", marginBottom: 6 } }, "Machines at this plant"),
           co.machines.map(function (m, j) {
             return e("div", { key: m.id, style: { display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" } },
-              e("input", { style: Object.assign({}, INPUT_S, { flex: "2 1 180px" }), placeholder: "Machine code e.g. 20-111-100-101", value: m.code, onChange: function (ev) { upM(i, j, "code", ev.target.value); } }),
-              e("input", { style: Object.assign({}, INPUT_S, { flex: "1 1 120px" }), placeholder: "Model (optional)", value: m.model, onChange: function (ev) { upM(i, j, "model", ev.target.value); } }));
+              e(Field, { label: "Machine code" }, e("input", { style: Object.assign({}, INPUT_S, { flex: "2 1 180px" }), value: m.code, onChange: function (ev) { upM(i, j, "code", ev.target.value); } })),
+              e(Field, { label: "Model (optional)" }, e("input", { style: Object.assign({}, INPUT_S, { flex: "1 1 120px" }), value: m.model, onChange: function (ev) { upM(i, j, "model", ev.target.value); } })));
           }),
           e(Btn, { small: true, kind: "ghost", onClick: function () { const n = cos.slice(); n[i] = Object.assign({}, n[i]); n[i].machines = n[i].machines.concat([{ id: uid(), code: "", model: "" }]); setCos(n); }, label: "+ Add machine" }));
       }),
@@ -1112,8 +1263,20 @@ function CustomerAccounts(p) {
           e("b", { style: { minWidth: 76 } }, cu.id),
           e("span", { style: { flex: "1 1 160px" } }, cu.name),
           e("span", { style: { fontSize: 12, color: C.mute } }, (cu.companies || []).length + " plant(s) · " + mCount + " machine(s)"),
+          cu.active === false ? e(Pill, { text: "Disabled", tone: "p-late" }) : null,
           user.role === "admin" ? e(Btn, { small: true, onClick: function () { setEditFor(cu.id); }, label: "Edit" }) : null,
-          e(Btn, { small: true, kind: "ghost", onClick: function () { setPwFor(cu); }, label: "Reset password" }));
+          e(Btn, { small: true, kind: "ghost", onClick: function () { setPwFor(cu); }, label: "Reset password" }),
+          user.role === "admin" ? e(Btn, { small: true, kind: cu.active === false ? "primary" : "ghost", onClick: function () { toggleCust(cu); }, label: cu.active === false ? "Enable" : "Disable" }) : null,
+          user.role === "admin" ? (delCust === cu.id
+            ? e("span", { style: { display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                db.complaints.some(function (c) { return c.customerId === cu.id; })
+                  ? e("span", { style: { fontSize: 12, color: C.red, fontWeight: 700 } }, "Has complaints on record — delete those first, or use Disable.")
+                  : e("b", { style: { fontSize: 12, color: C.red } }, "Delete permanently?"),
+                db.complaints.some(function (c) { return c.customerId === cu.id; })
+                  ? null
+                  : e(Btn, { small: true, kind: "danger", onClick: function () { removeCust(cu); }, label: "Yes, delete" }),
+                e(Btn, { small: true, kind: "ghost", onClick: function () { setDelCust(null); }, label: "Cancel" }))
+            : e(Btn, { small: true, kind: "danger", onClick: function () { setDelCust(cu.id); }, label: "Delete" })) : null);
       }) : e("div", { style: { fontSize: 13, color: C.mute } }, "No customers yet."),
       editFor ? e(CustomerEditModal, { cid: editFor, user: user, onClose: function () { setEditFor(null); p.refresh(); } }) : null,
       pwFor ? e(PasswordModal, {
@@ -1137,6 +1300,7 @@ function CustomerAccounts(p) {
 function CustomerEditModal(p) {
   const src = loadDB().customers.find(function (x) { return x.id === p.cid; });
   const [name, setName] = useState(src ? src.name : "");
+  const [gstin, setGstin] = useState(src ? (src.gstin || "") : "");
   const [cos, setCos] = useState(src ? deepCopy(src.companies || []) : []);
   const [msg, setMsg] = useState("");
   if (!src) return null;
@@ -1167,6 +1331,7 @@ function CustomerEditModal(p) {
     const row = db2.customers.find(function (x) { return x.id === p.cid; });
     if (!row) { setMsg("This account was removed on another device."); return; }
     row.name = nn;
+    row.gstin = gstin.trim();
     row.companies = companies;
     logAct(db2, p.user.name, "admin", "Admin updated customer " + p.cid + " (" + nn + ") — " + companies.length + " plant(s)");
     saveDB(db2, ["customers", "activity"]);
@@ -1174,6 +1339,7 @@ function CustomerEditModal(p) {
   }
   return e(Modal, { title: "Edit customer — " + src.id, onClose: p.onClose, width: 760 },
     e(Field, { label: "Customer / contact name" }, e("input", { style: INPUT_S, value: name, onChange: function (ev) { setName(ev.target.value); } })),
+    e(Field, { label: "Customer GST number (optional)" }, e("input", { style: INPUT_S, value: gstin, onChange: function (ev) { setGstin(ev.target.value); } })),
     cos.map(function (co, i) {
       return e("div", { key: co.id, style: { border: "1px dashed " + C.line, borderRadius: 10, padding: 12, marginBottom: 10, background: C.canvas } },
         e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 } },
@@ -1182,8 +1348,8 @@ function CustomerEditModal(p) {
         e("div", { style: { fontSize: 12, fontWeight: 700, color: C.mute, textTransform: "uppercase", marginBottom: 6 } }, "Machines at this plant"),
         (co.machines || []).map(function (m, j) {
           return e("div", { key: m.id, style: { display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" } },
-            e("input", { style: Object.assign({}, INPUT_S, { flex: "2 1 180px" }), placeholder: "Machine code e.g. 20-111-100-101", value: m.code || "", onChange: function (ev) { upM(i, j, "code", ev.target.value); } }),
-            e("input", { style: Object.assign({}, INPUT_S, { flex: "1 1 120px" }), placeholder: "Model (optional)", value: m.model || "", onChange: function (ev) { upM(i, j, "model", ev.target.value); } }));
+            e(Field, { label: "Machine code" }, e("input", { style: Object.assign({}, INPUT_S, { flex: "2 1 180px" }), value: m.code || "", onChange: function (ev) { upM(i, j, "code", ev.target.value); } })),
+            e(Field, { label: "Model (optional)" }, e("input", { style: Object.assign({}, INPUT_S, { flex: "1 1 120px" }), value: m.model || "", onChange: function (ev) { upM(i, j, "model", ev.target.value); } })));
         }),
         e(Btn, { small: true, kind: "ghost", onClick: function () { addMachine(i); }, label: "+ Add machine" }));
     }),
@@ -1235,7 +1401,7 @@ function SopLibrary(p) {
     isAdmin ? e(Card, { style: { marginBottom: 16 } },
       e(SectionTitle, { title: "Upload maintenance SOP (PDF)" }),
       e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 } },
-        e(Field, { label: "SOP title" }, e("input", { style: INPUT_S, value: title, placeholder: "e.g. Weekly roll tooling maintenance", onChange: function (ev) { setTitle(ev.target.value); } })),
+        e(Field, { label: "SOP title" }, e("input", { style: INPUT_S, value: title, onChange: function (ev) { setTitle(ev.target.value); } })),
         e(Field, { label: "PDF file (max 2.5 MB)" }, e("input", { style: INPUT_S, type: "file", accept: "application/pdf", ref: fileRef }))),
       err ? e("div", { style: { color: C.red, fontSize: 13, marginBottom: 10, fontWeight: 600 } }, err) : null,
       e(Btn, { kind: "accent", onClick: upload, disabled: busy, label: busy ? "Uploading…" : "Add SOP to library" }),
@@ -1515,9 +1681,17 @@ function BrandingPage(p) {
   const [sidebar, setSidebar] = useState(saved.sidebar);
   const [accent, setAccent] = useState(saved.accent);
   const [logo, setLogo] = useState(saved.logo);
+  const [addr, setAddr] = useState(saved.address);
+  const [phone, setPhone] = useState(saved.phone);
+  const [gstin, setGstin] = useState(saved.gstin);
+  const [timing, setTiming] = useState(saved.timing);
+  const [fb, setFb] = useState(saved.fb);
+  const [ig, setIg] = useState(saved.ig);
+  const [yt, setYt] = useState(saved.yt);
   const [msg, setMsg] = useState("");
   const logoRef = useRef(null);
-  const draft = { company: company, short: short, tagline: tagline, sidebar: sidebar, accent: accent, logo: logo };
+  const draft = { company: company, short: short, tagline: tagline, sidebar: sidebar, accent: accent, logo: logo,
+    address: addr, phone: phone, gstin: gstin.trim(), timing: timing, fb: fb.trim(), ig: ig.trim(), yt: yt.trim(), terms: saved.terms };
 
   function onLogo(ev) {
     const f = ev.target.files && ev.target.files[0];
@@ -1571,7 +1745,21 @@ function BrandingPage(p) {
           e(Btn, { kind: "primary", onClick: save, label: "Save branding" }),
           e(Btn, { kind: "ghost", onClick: reset, label: "Reset to default" })),
         msg ? e("div", { style: { marginTop: 10, fontSize: 13, fontWeight: 600, color: msg.includes("✓") ? C.green : C.amber } }, msg) : null,
-        e("div", { style: { marginTop: 12, fontSize: 12, color: C.mute } }, "Branding is saved on the JUGMUG cloud and applies everywhere for every user — including the customer sign-in screen.")),
+        e("div", { style: { marginTop: 12, fontSize: 12, color: C.mute } }, "Branding is saved on the JUGMUG cloud and applies everywhere for every user — including the customer sign-in screen."),
+        e("div", { style: { height: 14 } }),
+        e(SectionTitle, { title: "Company details (printed on every quotation)" }),
+        e(Field, { label: "Registered address" }, e("input", { style: INPUT_S, value: addr, onChange: function (ev) { setAddr(ev.target.value); } })),
+        e("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
+          e(Field, { label: "Contact number" }, e("input", { style: INPUT_S, value: phone, onChange: function (ev) { setPhone(ev.target.value); } })),
+          e(Field, { label: "Company GSTIN" }, e("input", { style: INPUT_S, value: gstin, onChange: function (ev) { setGstin(ev.target.value); } }))),
+        e(Field, { label: "Material collection timing (printed under quotation)" }, e("input", { style: INPUT_S, value: timing, onChange: function (ev) { setTiming(ev.target.value); } })),
+        e("div", { style: { height: 14 } }),
+        e(SectionTitle, { title: "Customer links (Follow Us page)" }),
+        e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 } },
+          e(Field, { label: "Facebook page link" }, e("input", { style: INPUT_S, value: fb, onChange: function (ev) { setFb(ev.target.value); } })),
+          e(Field, { label: "Instagram page link" }, e("input", { style: INPUT_S, value: ig, onChange: function (ev) { setIg(ev.target.value); } })),
+          e(Field, { label: "YouTube channel link" }, e("input", { style: INPUT_S, value: yt, onChange: function (ev) { setYt(ev.target.value); } }))),
+        e("div", { style: { fontSize: 12, color: C.mute } }, "Only links you fill here appear on the customer's Follow Us page. Save branding to publish.")),
       e(Card, null,
         e(SectionTitle, { title: "Live preview" }),
         e("div", { className: "eyebrow", style: { marginBottom: 8 } }, "Quick presets"),
@@ -1619,6 +1807,10 @@ function App() {
   const [selfPw, setSelfPw] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
   const db = loadDB();
+  useEffect(function () {
+    const t = setInterval(function () { setRev(function (x) { return x + 1; }); }, 60000);
+    return function () { clearInterval(t); };
+  }, []);
 
   function refresh(withToast) {
     setRev(function (x) { return x + 1; });
@@ -1667,11 +1859,14 @@ function App() {
   }
   if (!user) return e(Login, { onLogin: login });
 
-  const NAV = {
-    admin: [["home", "Dashboard"], ["complaints", "Complaints"], ["staff", "Staff Accounts"], ["customers", "Customer Accounts"], ["sops", "SOP Library"], ["feedback", "Feedback & Bugs"], ["branding", "Branding"], ["data", "Data & Backup"]],
-    staff: [["home", "My Desk"], ["complaints", "Complaints"], ["customers", "Customer Accounts"], ["sops", "SOP Library"], ["feedback", "Feedback & Bugs"]],
-    customer: [["home", "My Complaints"], ["new", "New Complaint"], ["sops", "Maintenance SOPs"]]
-  }[user.role];
+  const userDept = deptOf(db, user);
+  const NAV = userDept
+    ? [["home", "My Tasks"], ["sops", "SOP Library"], ["feedback", "Feedback & Bugs"]]
+    : {
+      admin: [["home", "Dashboard"], ["complaints", "Complaints"], ["staff", "Staff Accounts"], ["customers", "Customer Accounts"], ["quotes", "Cost Generator"], ["sops", "SOP Library"], ["terms", "Terms & Conditions"], ["feedback", "Feedback & Bugs"], ["branding", "Branding"], ["data", "Data & Backup"]],
+      staff: [["home", "My Desk"], ["complaints", "Complaints"], ["customers", "Customer Accounts"], ["quotes", "Cost Generator"], ["sops", "SOP Library"], ["feedback", "Feedback & Bugs"]],
+      customer: [["home", "My Complaints"], ["new", "New Complaint"], ["sops", "Maintenance SOPs"], ["terms", "Terms & Conditions"], ["follow", "Follow Us"]]
+    }[user.role];
 
   function renderBody() {
     if (page === "sops") return e(SopLibrary, { db: db, user: user, refresh: refresh });
@@ -1684,8 +1879,12 @@ function App() {
       if (page === "customers") return e(CustomerAccounts, { db: db, user: user, refresh: refresh });
       if (page === "data") return e(DataTools, { db: db, refresh: refresh });
     }
+    if (page === "quotes" && (user.role === "admin" || (user.role === "staff" && !userDept))) return e(CostGenerator, { db: db, user: user, refresh: refresh });
+    if (page === "terms" && (user.role === "admin" || user.role === "customer")) return e(TermsPage, { db: db, user: user, refresh: refresh });
+    if (page === "follow" && user.role === "customer") return e(FollowPage, { db: db, user: user, refresh: refresh });
     if (user.role === "staff") {
-      if (page === "home") return e(StaffDesk, { db: db, user: user, refresh: refresh, onOpen: setOpenC });
+      if (page === "home") return userDept ? e(DeptDesk, { db: db, user: user, refresh: refresh, onOpen: setOpenC }) : e(StaffDesk, { db: db, user: user, refresh: refresh, onOpen: setOpenC });
+      if (userDept) return null;
       if (page === "complaints") return e(TeamComplaints, { db: db, user: user, refresh: refresh, onOpen: setOpenC });
       if (page === "customers") return e(CustomerAccounts, { db: db, user: user, refresh: refresh });
     }
@@ -1695,7 +1894,7 @@ function App() {
     }
     return null;
   }
-  const NAV_ICON = { home: "▦", complaints: "⚐", staff: "◈", customers: "▣", sops: "≡", feedback: "✉", branding: "◆", data: "⛁", "new": "+" };
+  const NAV_ICON = { home: "▦", complaints: "⚐", staff: "◈", customers: "▣", quotes: "₹", sops: "≡", terms: "§", follow: "◎", feedback: "✉", branding: "◆", data: "⛁", "new": "+" };
   const ROLE_LABEL = { admin: "Factory Admin", staff: "Sales Service", customer: "Customer" };
   const PAGE_SUB = {
     home: { admin: "Team performance, delays and complaint monitoring", staff: "Your assigned complaints and delivery targets", customer: "Track your machine complaints" },
@@ -1736,6 +1935,7 @@ function App() {
         e(Corrugation, { color: C.line, h: 8 }),
         e("div", { style: { marginTop: 8 } }, BRAND.company + " · Service Desk v" + APP_VERSION))),
     openC ? e(ComplaintModal, { db: db, user: user, cid: openC, refresh: refresh, onClose: function () { setOpenC(null); } }) : null,
+    !openC ? e(ReminderPopup, { db: db, user: user, onOpen: setOpenC }) : null,
     selfPw ? e(PasswordModal, { title: "Change your password", subtitle: "Set the password you want to use from now on.", onClose: function () { setSelfPw(false); }, onSave: saveOwnPassword }) : null);
 }
 
@@ -1774,6 +1974,875 @@ function StaffDesk(p) {
     e(Card, { style: { padding: 0, overflow: "hidden" } },
       e("div", { style: { padding: "14px 16px 0" } }, e(SectionTitle, { title: "My assigned complaints" })),
       e(ComplaintTable, { db: db, list: mine, team: true, onOpen: p.onOpen })));
+}
+
+// ================= TERMS & CONDITIONS (admin edits, customers read-only) =================
+function TermsPage(p) {
+  const user = p.user;
+  const isAdmin = user.role === "admin";
+  const saved = normBrand(p.db.branding || BRAND);
+  const [draft, setDraft] = useState(saved.terms || "");
+  const [msg, setMsg] = useState("");
+  function save() {
+    const db2 = loadDB();
+    const cur = normBrand(db2.branding || BRAND);
+    cur.terms = draft;
+    db2.branding = cur;
+    applyBrand(db2.branding);
+    Store.set("jm8_brand", db2.branding);
+    logAct(db2, user.name, "admin", "Admin updated Terms & Conditions");
+    saveDB(db2, ["branding", "activity"]);
+    setMsg("Terms saved \u2713 \u2014 visible to all customers.");
+    p.refresh();
+  }
+  if (isAdmin) {
+    return e(Card, null,
+      e(SectionTitle, { title: "Terms & Conditions \u2014 shown to every customer" }),
+      e(Field, { label: "Standard terms and conditions (customers see exactly this text)" },
+        e("textarea", { style: Object.assign({}, INPUT_S, { minHeight: 320, resize: "vertical", fontFamily: "inherit", lineHeight: 1.6 }), value: draft, onChange: function (ev) { setDraft(ev.target.value); } })),
+      msg ? e("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 10, color: C.green } }, msg) : null,
+      e(Btn, { kind: "accent", onClick: save, label: "Save Terms & Conditions" }),
+      e("div", { style: { fontSize: 12, color: C.mute, marginTop: 8 } }, "Customers see these terms read-only \u2014 copying and downloading are locked on their side. Only admin can edit this page."));
+  }
+  const text = saved.terms || "";
+  return e(Card, null,
+    e(SectionTitle, { title: "Terms & Conditions \u2014 " + BRAND.company, right: e(Pill, { text: "Read-only", tone: "p-mute" }) }),
+    text ? e("div", {
+      style: { fontSize: 14, lineHeight: 1.7, whiteSpace: "pre-wrap", userSelect: "none", WebkitUserSelect: "none" },
+      onCopy: function (ev) { ev.preventDefault(); },
+      onCut: function (ev) { ev.preventDefault(); },
+      onContextMenu: function (ev) { ev.preventDefault(); }
+    }, text) : e("div", { style: { fontSize: 13, color: C.mute } }, "Terms & Conditions will appear here soon."),
+    e("div", { style: { fontSize: 11, color: C.mute, marginTop: 14 } }, "\u00A9 " + new Date().getFullYear() + " " + BRAND.company + ". These terms are for viewing within the Service Desk only."));
+}
+
+// ================= FOLLOW US (customers) =================
+function FollowPage(p) {
+  const b = normBrand(p.db.branding || BRAND);
+  const links = [
+    ["Facebook", b.fb, "#1877f2", "f"],
+    ["Instagram", b.ig, "#c13584", "\u25CE"],
+    ["YouTube", b.yt, "#ff0000", "\u25B6"]
+  ].filter(function (l) { return l[1]; });
+  return e(Card, null,
+    e(SectionTitle, { title: "Stay connected with " + BRAND.company }),
+    links.length ? e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 14, marginTop: 6 } },
+      links.map(function (l) {
+        return e("a", {
+          key: l[0], href: l[1], target: "_blank", rel: "noopener noreferrer",
+          style: { display: "flex", alignItems: "center", gap: 12, padding: "16px 18px", borderRadius: 12, border: "1px solid " + C.line, textDecoration: "none", background: "#fff" }
+        },
+          e("span", { style: { width: 42, height: 42, borderRadius: 10, background: l[2], color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 800 } }, l[3]),
+          e("span", null,
+            e("b", { style: { display: "block", color: C.text, fontSize: 15 } }, l[0]),
+            e("span", { style: { fontSize: 12, color: C.mute } }, "Follow us on " + l[0])));
+      })) : e("div", { style: { fontSize: 13, color: C.mute } }, "Our social pages are being set up \u2014 links will appear here soon."),
+    e("div", { style: { fontSize: 12, color: C.mute, marginTop: 14 } }, "Latest machines, maintenance tips and factory updates \u2014 straight from " + BRAND.company + "."));
+}
+
+// ================= COST GENERATOR (sales service + admin) =================
+const QUOTE_UNITS = ["nos", "set", "kg", "mtr", "hrs", "job"];
+const QUOTE_TERMS = "1. Prices are ex-works, GST as applicable.\n2. Delivery period to be confirmed on order.\n3. Payment: 50% advance, balance before dispatch.\n4. Quotation valid for 15 days.";
+const PDF_FOOT_NOTE = "Quotation valid subject to raw material rate at time of order. Taxes as applicable.";
+function inr(n) { return "\u20B9 " + Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 }); }
+function inr2(n) { return "\u20B9 " + Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2, minimumFractionDigits: 2 }); }
+function rsTxt(n) { return "Rs. " + Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 }); }
+function quoteTotals(qt) {
+  const sub = (qt.items || []).reduce(function (a, it) { return a + (Number(it.qty) || 0) * (Number(it.rate) || 0); }, 0);
+  const disc = Number(qt.discount) || 0;
+  const taxable = Math.max(0, sub - disc);
+  const gst = taxable * (Number(qt.gstPct) || 0) / 100;
+  const raw = taxable + gst;
+  const grand = Math.round(raw);
+  return { sub: sub, disc: disc, taxable: taxable, gst: gst, round: grand - raw, grand: grand };
+}
+function quoteGrand(qt) { return qt.kind === "general" ? quoteTotals(qt).grand : (qt.grand || 0); }
+
+// ---- Turned parts (rolls / gears / shafts) — same maths as the CNC sheet ----
+const TURN_TYPES = {
+  roll: { name: "Roll Tool", items: [
+    { id: "raw", label: "Raw Material", kind: "perkg", def: 170 },
+    { id: "rough", label: "Roughing Machining", kind: "flat", def: 2500 },
+    { id: "kwslot", label: "Keyway Slotting", kind: "flat", def: 250 },
+    { id: "kwwire", label: "Keyway Wire Cutting", kind: "flat", def: 1500 },
+    { id: "ht", label: "Heat Treatment", kind: "perkg", def: 110 },
+    { id: "hturn", label: "Hard Turning", kind: "flat", def: 2500 },
+    { id: "stamp", label: "Stamping", kind: "flat", def: 100 },
+    { id: "trans", label: "Transportation", kind: "flat", def: 300 }
+  ] },
+  gear: { name: "Gear", items: [
+    { id: "raw", label: "Raw Material", kind: "perkg", def: 75 },
+    { id: "rough", label: "Roughing Machining", kind: "flat", def: 2500 },
+    { id: "kwslot", label: "Keyway Slotting", kind: "flat", def: 250 },
+    { id: "hob", label: "Gear Hobbing", kind: "flat", def: 1500 },
+    { id: "induct", label: "Induction Hardening", kind: "perkg", def: 110 },
+    { id: "trans", label: "Transportation", kind: "flat", def: 300 }
+  ] },
+  shaft: { name: "Shaft", items: [
+    { id: "raw", label: "Raw Material", kind: "perkg", def: 170 },
+    { id: "mach", label: "Machining", kind: "flat", def: 2500 },
+    { id: "vmc", label: "VMC Keyway Slotting", kind: "flat", def: 500 },
+    { id: "grind", label: "Grinding Process", kind: "flat", def: 1500 },
+    { id: "trans", label: "Transportation", kind: "flat", def: 300 }
+  ] }
+};
+const VMC_MATS = { alu: [2700, "Aluminium"], ms: [7850, "Mild Steel"], en: [7850, "EN8 / EN24"], ss: [8000, "SS 304"], brass: [8500, "Brass"] };
+function turnDefaults() {
+  const o = {};
+  Object.keys(TURN_TYPES).forEach(function (k) {
+    o[k] = {};
+    TURN_TYPES[k].items.forEach(function (it) { o[k][it.id] = it.def; });
+  });
+  return o;
+}
+function turnWeight(dia, len) { return Math.PI * dia * dia * len * 7850 / 4e9; }
+
+// ---- PDF engine (lazy jsPDF from CDN) ----
+let JSPDF_LOADING = null;
+function loadJsPdf() {
+  if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf.jsPDF);
+  if (JSPDF_LOADING) return JSPDF_LOADING;
+  JSPDF_LOADING = new Promise(function (res, rej) {
+    const sc = document.createElement("script");
+    sc.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+    sc.onload = function () { window.jspdf && window.jspdf.jsPDF ? res(window.jspdf.jsPDF) : rej(new Error("jsPDF missing")); };
+    sc.onerror = function () { rej(new Error("Could not load PDF engine")); };
+    document.head.appendChild(sc);
+  });
+  return JSPDF_LOADING;
+}
+function pdfHeader(doc, title, right1, right2) {
+  const W = 210, M = 14;
+  doc.setFillColor(22, 33, 47); doc.rect(0, 0, W, 26, "F");
+  doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(15);
+  doc.text(BRAND.company || "JUGMUG Rollforming", M, 11);
+  doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(148, 163, 184);
+  doc.text(title, M, 18);
+  doc.setTextColor(20, 184, 166); doc.setFontSize(12); doc.setFont("helvetica", "bold");
+  doc.text(right1 || "", W - M, 11, { align: "right" });
+  doc.setTextColor(148, 163, 184); doc.setFontSize(9); doc.setFont("helvetica", "normal");
+  doc.text(right2 || "", W - M, 18, { align: "right" });
+}
+// Part-cost PDF: quote row table + full breakdown lines (turned / VMC)
+function partPdf(qt) {
+  return loadJsPdf().then(function (JsPDF) {
+    const doc = new JsPDF({ unit: "mm", format: "a4" });
+    const W = 210, M = 14;
+    pdfHeader(doc, "Part cost quotation", qt.id, "Date: " + fmtDate(qt.at));
+    let y = 36;
+    doc.setTextColor(24, 36, 51); doc.setFontSize(10);
+    const meta = [["Client", qt.client || "\u2014"], ["Part code", qt.pcode || "\u2014"], ["Part no / name", qt.partno || "\u2014"], ["Type", qt.ptype + (qt.size ? " \u00B7 " + qt.size : "")], ["Qty", String(qt.qty) + " pc"], ["Prepared by", qt.by || ""]];
+    meta.forEach(function (mrow) {
+      doc.setFont("helvetica", "bold"); doc.text(mrow[0] + ":", M, y);
+      doc.setFont("helvetica", "normal"); doc.text(String(mrow[1]), M + 34, y);
+      y += 5.6;
+    });
+    y += 3;
+    doc.setFillColor(239, 243, 247); doc.rect(M, y, W - 2 * M, 8, "F");
+    doc.setFontSize(8.5); doc.setFont("helvetica", "bold"); doc.setTextColor(97, 114, 136);
+    doc.text("DESCRIPTION", M + 2, y + 5.5);
+    doc.text("AMOUNT", W - M - 2, y + 5.5, { align: "right" });
+    y += 12;
+    doc.setFont("helvetica", "normal"); doc.setTextColor(24, 36, 51); doc.setFontSize(9.5);
+    (qt.lines || []).forEach(function (l) {
+      if (y > 262) { doc.addPage(); pdfHeader(doc, "Part cost quotation", qt.id, "Date: " + fmtDate(qt.at)); y = 36; }
+      doc.text(String(l.label), M + 2, y);
+      doc.text("Rs. " + Number(l.amt || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 }), W - M - 2, y, { align: "right" });
+      doc.setDrawColor(217, 226, 236); doc.line(M, y + 2, W - M, y + 2);
+      y += 7;
+    });
+    y += 2;
+    if (qt.qty > 1) {
+      doc.setFont("helvetica", "bold"); doc.setFontSize(10.5);
+      doc.text("Cost per piece", M + 2, y);
+      doc.text("Rs. " + Math.round(qt.perPc).toLocaleString("en-IN"), W - M - 2, y, { align: "right" });
+      y += 8;
+    }
+    doc.setFillColor(14, 116, 144); doc.rect(M, y - 5, W - 2 * M, 10, "F");
+    doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(12);
+    doc.text("GRAND TOTAL (" + qt.qty + " pc)", M + 2, y + 1.5);
+    doc.text("Rs. " + Math.round(qt.grand).toLocaleString("en-IN"), W - M - 2, y + 1.5, { align: "right" });
+    y += 14;
+    doc.setTextColor(97, 114, 136); doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+    doc.text(PDF_FOOT_NOTE, M, y);
+    doc.setTextColor(24, 36, 51); doc.setFontSize(9); doc.setFont("helvetica", "bold");
+    doc.text("For " + (BRAND.company || "JUGMUG Rollforming"), W - M, 262, { align: "right" });
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(97, 114, 136);
+    doc.text("Authorised signatory", W - M, 274, { align: "right" });
+    doc.text("Generated on JUGMUG Service Desk by " + (qt.by || "") + " \u00B7 " + fmtDT(qt.at), M, 288);
+    doc.save(qt.id + ".pdf");
+  });
+}
+// Summary PDF of ALL saved quotes (one row each)
+function allQuotesPdf(quotes) {
+  return loadJsPdf().then(function (JsPDF) {
+    const doc = new JsPDF({ unit: "mm", format: "a4" });
+    const W = 210, M = 14;
+    pdfHeader(doc, "Saved cost quotations", quotes.length + " item(s)", "Date: " + fmtDate(Date.now()));
+    let y = 36;
+    function head() {
+      doc.setFillColor(239, 243, 247); doc.rect(M, y, W - 2 * M, 8, "F");
+      doc.setFontSize(8); doc.setFont("helvetica", "bold"); doc.setTextColor(97, 114, 136);
+      doc.text("DATE", M + 2, y + 5.5);
+      doc.text("QUOTE", M + 24, y + 5.5);
+      doc.text("CLIENT", M + 52, y + 5.5);
+      doc.text("PART / REF", M + 92, y + 5.5);
+      doc.text("QTY", M + 138, y + 5.5);
+      doc.text("GRAND", W - M - 2, y + 5.5, { align: "right" });
+      y += 12;
+      doc.setFont("helvetica", "normal"); doc.setTextColor(24, 36, 51); doc.setFontSize(8.5);
+    }
+    head();
+    let sum = 0;
+    quotes.forEach(function (qt) {
+      if (y > 268) { doc.addPage(); pdfHeader(doc, "Saved cost quotations", "", ""); y = 36; head(); }
+      const g = quoteGrand(qt);
+      sum += g;
+      doc.text(fmtDate(qt.at), M + 2, y);
+      doc.text(qt.id, M + 24, y);
+      doc.text(String(qt.client || qt.customerName || "\u2014").slice(0, 22), M + 52, y);
+      doc.text(String(qt.partno || qt.pcode || qt.reference || "\u2014").slice(0, 24), M + 92, y);
+      doc.text(String(qt.qty || "\u2014"), M + 138, y);
+      doc.text("Rs. " + Math.round(g).toLocaleString("en-IN"), W - M - 2, y, { align: "right" });
+      doc.setDrawColor(217, 226, 236); doc.line(M, y + 2, W - M, y + 2);
+      y += 7;
+    });
+    y += 2;
+    doc.setFillColor(14, 116, 144); doc.rect(M, y - 5, W - 2 * M, 10, "F");
+    doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(11);
+    doc.text("TOTAL OF ALL QUOTES", M + 2, y + 1.5);
+    doc.text("Rs. " + Math.round(sum).toLocaleString("en-IN"), W - M - 2, y + 1.5, { align: "right" });
+    doc.setTextColor(97, 114, 136); doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+    doc.text(PDF_FOOT_NOTE, M, y + 12);
+    doc.save("JUGMUG-quotes-" + new Date().toISOString().slice(0, 10) + ".pdf");
+  });
+}
+// GST quotation PDF — clean & simple: company block, customer, part lines, GST, total
+function quotePdf(qt) {
+  return loadJsPdf().then(function (JsPDF) {
+    const t = quoteTotals(qt);
+    const doc = new JsPDF({ unit: "mm", format: "a4" });
+    const W = 210, M = 14;
+    let y = 0;
+    function header() {
+      doc.setFillColor(22, 33, 47); doc.rect(0, 0, W, 34, "F");
+      doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(17);
+      doc.text(BRAND.company || "JUGMUG Roll forming", M, 12);
+      doc.setFontSize(8.5); doc.setFont("helvetica", "normal"); doc.setTextColor(170, 184, 200);
+      doc.text(BRAND.address || "", M, 19);
+      doc.text("Contact: " + (BRAND.phone || "") + (BRAND.gstin ? "   \u00B7   GSTIN: " + BRAND.gstin : ""), M, 25);
+      doc.setTextColor(20, 184, 166); doc.setFontSize(13); doc.setFont("helvetica", "bold");
+      doc.text("QUOTATION", W - M, 12, { align: "right" });
+      doc.setTextColor(255, 255, 255); doc.setFontSize(10);
+      doc.text(qt.id, W - M, 19, { align: "right" });
+      doc.setTextColor(170, 184, 200); doc.setFontSize(9); doc.setFont("helvetica", "normal");
+      doc.text("Date: " + fmtDate(qt.at), W - M, 25, { align: "right" });
+      y = 43;
+    }
+    header();
+    doc.setTextColor(24, 36, 51); doc.setFontSize(10.5);
+    doc.setFont("helvetica", "bold"); doc.text("Customer:", M, y);
+    doc.setFont("helvetica", "normal"); doc.text(String(qt.customerName || "\u2014"), M + 24, y);
+    if (qt.custGstin) {
+      doc.setFont("helvetica", "bold"); doc.text("GSTIN:", W - M - 60, y);
+      doc.setFont("helvetica", "normal"); doc.text(String(qt.custGstin), W - M - 44, y);
+    }
+    if (qt.reference) {
+      y += 6;
+      doc.setFont("helvetica", "bold"); doc.text("Ref:", M, y);
+      doc.setFont("helvetica", "normal"); doc.text(String(qt.reference), M + 24, y);
+    }
+    y += 9;
+    const colX = { sr: M, code: M + 10, desc: M + 44, qty: M + 128, rate: M + 148, amt: W - M };
+    function thead() {
+      doc.setFillColor(239, 243, 247); doc.rect(M, y, W - 2 * M, 8, "F");
+      doc.setFontSize(8.5); doc.setFont("helvetica", "bold"); doc.setTextColor(97, 114, 136);
+      doc.text("SR", colX.sr + 2, y + 5.5);
+      doc.text("PART CODE", colX.code, y + 5.5);
+      doc.text("DESCRIPTION", colX.desc, y + 5.5);
+      doc.text("QTY", colX.qty, y + 5.5);
+      doc.text("RATE", colX.rate, y + 5.5);
+      doc.text("AMOUNT", colX.amt, y + 5.5, { align: "right" });
+      y += 11;
+    }
+    thead();
+    doc.setFont("helvetica", "normal"); doc.setTextColor(24, 36, 51); doc.setFontSize(9.5);
+    (qt.items || []).forEach(function (it, i) {
+      const descLines = doc.splitTextToSize(String(it.desc || ""), 80);
+      const codeLines = doc.splitTextToSize(String(it.material || "\u2014"), 30);
+      const rows = Math.max(descLines.length, codeLines.length, 1);
+      const h = rows * 4.6 + 3;
+      if (y + h > 250) { doc.addPage(); header(); thead(); doc.setFont("helvetica", "normal"); doc.setTextColor(24, 36, 51); doc.setFontSize(9.5); }
+      doc.text(String(i + 1), colX.sr + 2, y + 3.5);
+      doc.text(codeLines, colX.code, y + 3.5);
+      doc.text(descLines, colX.desc, y + 3.5);
+      doc.text(String(it.qty || 0) + " " + String(it.unit || "nos"), colX.qty, y + 3.5);
+      doc.text(Number(it.rate || 0).toLocaleString("en-IN"), colX.rate, y + 3.5);
+      doc.text((Number(it.qty || 0) * Number(it.rate || 0)).toLocaleString("en-IN"), colX.amt, y + 3.5, { align: "right" });
+      y += h;
+      doc.setDrawColor(217, 226, 236); doc.line(M, y - 1, W - M, y - 1);
+    });
+    if (y > 225) { doc.addPage(); header(); }
+    y += 5;
+    const tx = W - M - 74;
+    function trow(label, val) {
+      doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+      doc.text(label, tx, y);
+      doc.text(val, W - M, y, { align: "right" });
+      y += 6.5;
+    }
+    doc.setTextColor(24, 36, 51);
+    trow("Price", "Rs. " + t.sub.toLocaleString("en-IN", { maximumFractionDigits: 0 }));
+    if (t.disc) trow("Discount", "- Rs. " + t.disc.toLocaleString("en-IN", { maximumFractionDigits: 0 }));
+    trow("GST @ " + (Number(qt.gstPct) || 0) + "%", "Rs. " + t.gst.toLocaleString("en-IN", { maximumFractionDigits: 0 }));
+    doc.setFillColor(14, 116, 144); doc.rect(tx - 4, y - 4.5, W - M - tx + 4, 10, "F");
+    doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(11.5);
+    doc.text("TOTAL (incl. GST)", tx, y + 1);
+    doc.text("Rs. " + t.grand.toLocaleString("en-IN"), W - M, y + 1, { align: "right" });
+    y += 14;
+    doc.setTextColor(24, 36, 51);
+    if (qt.notes) {
+      doc.setFontSize(8.5); doc.setFont("helvetica", "bold"); doc.text("Terms", M, y); y += 4.5;
+      doc.setFont("helvetica", "normal"); doc.setTextColor(97, 114, 136);
+      const nl = doc.splitTextToSize(String(qt.notes), W - 2 * M - 70);
+      doc.text(nl, M, y); y += nl.length * 4 + 5;
+    }
+    doc.setTextColor(97, 114, 136); doc.setFont("helvetica", "normal"); doc.setFontSize(8.5);
+    if (BRAND.timing) doc.text(String(BRAND.timing), M, Math.max(y, 262));
+    doc.setTextColor(24, 36, 51); doc.setFontSize(9.5); doc.setFont("helvetica", "bold");
+    doc.text("For " + (BRAND.company || "JUGMUG Roll forming"), W - M, 262, { align: "right" });
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(97, 114, 136);
+    doc.text("Authorised signatory", W - M, 274, { align: "right" });
+    doc.text("Generated on JUGMUG Service Desk by " + (qt.by || "") + " \u00B7 " + fmtDT(qt.at), M, 288);
+    doc.save(qt.id + ".pdf");
+  });
+}
+function anyQuotePdf(qt) { return qt.kind === "general" ? quotePdf(qt) : partPdf(qt); }
+function waShare(text) {
+  try { window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank"); } catch (e2) {}
+}
+function copyTxt(text, done) {
+  const fin = function () { if (done) done(); };
+  try { navigator.clipboard.writeText(text).then(fin, fin); }
+  catch (e2) {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); ta.remove();
+    } catch (e3) {}
+    fin();
+  }
+}
+// Shared save — every saved quote goes to the cloud for the whole team
+function persistQuote(user, qt, refresh, after) {
+  const db2 = loadDB();
+  db2.quotes.unshift(qt);
+  logAct(db2, user.name, user.role, user.name + " generated cost quote " + qt.id + " (" + (qt.client || qt.customerName || "") + ", " + rsTxt(quoteGrand(qt)) + ")");
+  saveDB(db2, ["quotes", "activity"]);
+  refresh();
+  if (after) after(qt);
+}
+
+// ---- Module 1: turned parts (rolls / gears / shafts) ----
+function TurnedCalc(p) {
+  const db = p.db, user = p.user;
+  const [ptype, setPtype] = useState("roll");
+  const [pcode, setPcode] = useState("");
+  const [partno, setPartno] = useState("");
+  const [qty, setQty] = useState(1);
+  const [dia, setDia] = useState(140);
+  const [len, setLen] = useState(55);
+  const [gstPct, setGstPct] = useState(18);
+  const [rates, setRates] = useState(turnDefaults);
+  const [msg, setMsg] = useState("");
+  const t = TURN_TYPES[ptype];
+  const wtPc = turnWeight(Number(dia) || 0, Number(len) || 0);
+  const lines = t.items.map(function (it) {
+    const rate = Number(rates[ptype][it.id]) || 0;
+    return { id: it.id, label: it.label, kind: it.kind, rate: rate, cost: it.kind === "perkg" ? wtPc * rate : rate };
+  });
+  const perPc = lines.reduce(function (a, l) { return a + l.cost; }, 0);
+  const q = Math.max(1, Number(qty) || 1);
+  const sub = perPc * q;
+  const gstAmt = sub * (Number(gstPct) || 0) / 100;
+  const grand = Math.round(sub + gstAmt);
+  const perPcIncl = grand / q;
+  function setRate(id, v) {
+    const n = JSON.parse(JSON.stringify(rates));
+    n[ptype][id] = v;
+    setRates(n);
+  }
+  function quoteText() {
+    const L = ["*PART COST QUOTE \u2014 " + BRAND.company + "*",
+      "Client: " + (p.custLabel || "-"),
+      "Part code: " + (pcode || "-"),
+      "Part no: " + (partno || "-") + " (" + t.name + ")",
+      "Size: Dia " + dia + " x " + len + " mm | Qty: " + q + " pc",
+      "------------------------",
+      "Price: " + rsTxt(sub),
+      "GST @" + (Number(gstPct) || 0) + "%: " + rsTxt(gstAmt),
+      "*TOTAL incl. GST (" + q + " pcs): " + rsTxt(grand) + "*"];
+    if (BRAND.gstin) L.push("Our GSTIN: " + BRAND.gstin);
+    return L.join("\n");
+  }
+  function buildQuote() {
+    return {
+      id: quoteId(), kind: "turned", client: p.custLabel || "", pcode: pcode.trim(), partno: partno.trim(),
+      ptype: t.name, size: "\u00D8" + dia + " \u00D7 " + len + " mm", qty: q, wtPc: wtPc,
+      lines: [
+        { label: t.name + " " + (partno.trim() || pcode.trim() || "") + " \u2014 " + q + " pc \u00D7 " + rsTxt(Math.round(perPc)), amt: sub },
+        { label: "GST @ " + (Number(gstPct) || 0) + "%", amt: gstAmt }
+      ],
+      perPc: perPcIncl, grand: grand, by: user.name, byId: user.id, at: Date.now()
+    };
+  }
+  function addToQuote() {
+    const nm = (partno.trim() || pcode.trim() || t.name);
+    p.onAdd({
+      id: uid(), desc: t.name + " " + nm + " \u2014 \u00D8" + dia + " \u00D7 " + len + " mm",
+      material: pcode.trim(), qty: q, unit: "nos", rate: Math.round(perPc)
+    }, Number(gstPct) || 0);
+    setMsg("Added to quotation \u2713 \u2014 open the Quotation tab when all parts are added.");
+    setPartno("");
+  }
+  function pdf() {
+    const qt = buildQuote();
+    partPdf(qt).then(function () { setMsg("Cost-sheet PDF downloaded \u2713 (use Add to Quotation for the GST bill)."); },
+      function (e2) { setMsg("PDF engine could not load: " + e2.message); });
+  }
+  // drawing preview (like the desktop tool, light theme)
+  const svgW = 400, svgH = 150, pad = 46;
+  const dd = Math.max(Number(dia) || 1, 1), ll = Math.max(Number(len) || 1, 1);
+  const sc = Math.min((svgW - 2 * pad) / ll, (svgH - 2 * pad) / dd);
+  const pw = Math.max(ll * sc, 6), ph = Math.max(dd * sc, 6);
+  const px = (svgW - pw) / 2, py = (svgH - ph) / 2;
+  return e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 16 } },
+    e(Card, null,
+      e(SectionTitle, { title: "Job details" }),
+      e("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 } },
+        Object.keys(TURN_TYPES).map(function (k) {
+          return e(Btn, { key: k, small: true, kind: ptype === k ? "primary" : "ghost", onClick: function () { setPtype(k); }, label: TURN_TYPES[k].name });
+        })),
+      e("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } },
+        e(Field, { label: "Part code" }, e("input", { style: INPUT_S, value: pcode, onChange: function (ev) { setPcode(ev.target.value); } })),
+        e(Field, { label: "Roll / part no." }, e("input", { style: INPUT_S, value: partno, onChange: function (ev) { setPartno(ev.target.value); } })),
+        e(Field, { label: "Qty (pcs)" }, e("input", { style: INPUT_S, type: "number", min: 1, value: qty, onChange: function (ev) { setQty(ev.target.value); } })),
+        e(Field, { label: "GST %" }, e("input", { style: INPUT_S, type: "number", min: 0, max: 28, value: gstPct, onChange: function (ev) { setGstPct(ev.target.value); } })),
+        e(Field, { label: "Diameter \u00D8 (mm)" }, e("input", { style: INPUT_S, type: "number", min: 0, value: dia, onChange: function (ev) { setDia(ev.target.value); } })),
+        e(Field, { label: "Length (mm)" }, e("input", { style: INPUT_S, type: "number", min: 0, value: len, onChange: function (ev) { setLen(ev.target.value); } }))),
+      e("div", { style: { background: C.canvas, border: "1px dashed " + C.line, borderRadius: 8, padding: 6, margin: "8px 0 12px" } },
+        e("svg", { viewBox: "0 0 400 150", style: { display: "block", width: "100%", height: 130 } },
+          e("rect", { x: px, y: py, width: pw, height: ph, rx: 3, fill: "#fff", stroke: C.blue, strokeWidth: 1.5 }),
+          e("line", { x1: px - 14, y1: svgH / 2, x2: px + pw + 14, y2: svgH / 2, stroke: C.line, strokeDasharray: "8 4 2 4" }),
+          e("line", { x1: px, y1: py + ph + 16, x2: px + pw, y2: py + ph + 16, stroke: C.mute }),
+          e("text", { x: px + pw / 2, y: py + ph + 30, fill: C.mute, fontSize: 11, textAnchor: "middle" }, "L " + len),
+          e("line", { x1: px - 16, y1: py, x2: px - 16, y2: py + ph, stroke: C.mute }),
+          e("text", { x: px - 22, y: py + ph / 2 + 4, fill: C.mute, fontSize: 11, textAnchor: "end" }, "\u00D8" + dia))),
+      e(SectionTitle, { title: "Process rates \u00B7 " + t.name }),
+      e("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } },
+        t.items.map(function (it) {
+          return e(Field, { key: ptype + it.id, label: it.label + (it.kind === "perkg" ? " \u20B9/kg" : " \u20B9") },
+            e("input", { style: INPUT_S, type: "number", min: 0, value: rates[ptype][it.id], onChange: function (ev) { setRate(it.id, ev.target.value); } }));
+        })),
+      e("div", { style: { fontSize: 12, color: C.mute, marginTop: 8 } }, "Weight formula (same as the Excel): \u03C0 \u00D7 \u00D8\u00B2 \u00D7 L \u00D7 7850 \u00F7 4\u00D710\u2079 \u2192 kg per piece. Per-kg rates apply on weight; other charges are flat \u20B9 per piece. Set any charge to 0 if not required.")),
+    e(Card, null,
+      e(SectionTitle, { title: "Costing" }),
+      e("table", { style: { width: "100%" } }, e("tbody", null,
+        e("tr", null, e("td", { style: { color: C.mute } }, "Weight / pc"), e("td", { style: { textAlign: "right", fontWeight: 700 } }, wtPc.toFixed(3) + " kg")),
+        e("tr", null, e("td", { style: { color: C.mute } }, "Total weight (" + q + " pc)"), e("td", { style: { textAlign: "right" } }, (wtPc * q).toFixed(3) + " kg")),
+        lines.map(function (l) {
+          return e("tr", { key: l.id },
+            e("td", { style: { color: C.mute } }, l.label + (l.kind === "perkg" ? " @\u20B9" + l.rate + "/kg" : "")),
+            e("td", { style: { textAlign: "right" } }, inr(l.cost)));
+        }),
+        e("tr", null, e("td", { style: { fontWeight: 700, borderTop: "2px solid " + C.blue, paddingTop: 8 } }, "Price (" + q + " pc)"), e("td", { style: { textAlign: "right", fontWeight: 700, borderTop: "2px solid " + C.blue, paddingTop: 8 } }, inr(sub))),
+        e("tr", null, e("td", { style: { color: C.mute } }, "GST @ " + (Number(gstPct) || 0) + "%"), e("td", { style: { textAlign: "right" } }, inr(gstAmt))),
+        e("tr", null, e("td", { style: { fontSize: 17, fontWeight: 800, color: C.accent } }, "Total incl. GST (" + q + " pc)"), e("td", { style: { textAlign: "right", fontSize: 17, fontWeight: 800, color: C.accent } }, inr(grand))),
+        e("tr", null, e("td", { style: { color: C.mute, fontSize: 12 } }, "Per piece incl. GST"), e("td", { style: { textAlign: "right", fontSize: 12, color: C.mute } }, inr(perPcIncl))))),
+      msg ? e("div", { style: { fontSize: 13, fontWeight: 600, margin: "10px 0", color: msg.indexOf("\u2713") >= 0 ? C.green : C.blue } }, msg) : null,
+      e("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 } },
+        e(Btn, { kind: "accent", onClick: addToQuote, label: "+ Add to Quotation (" + inr(perPc) + "/pc)" }),
+        e(Btn, { kind: "ghost", onClick: pdf, label: "Cost PDF" }),
+        e(Btn, { kind: "ghost", onClick: function () { waShare(quoteText()); }, label: "WhatsApp" }),
+        e(Btn, { kind: "ghost", onClick: function () { copyTxt(quoteText().replace(/\*/g, ""), function () { setMsg("Quote text copied \u2713"); }); }, label: "Copy" }))));
+}
+
+// ---- Module 2: VMC 2.5D machining ----
+function VmcCalc(p) {
+  const db = p.db, user = p.user;
+  const [pcode, setPcode] = useState("");
+  const [partno, setPartno] = useState("");
+  const [qty, setQty] = useState(1);
+  const [mat, setMat] = useState("ms");
+  const [matRate, setMatRate] = useState(0);
+  const [bl, setBl] = useState(0);
+  const [bw, setBw] = useState(0);
+  const [bh, setBh] = useState(0);
+  const [mhr, setMhr] = useState(800);
+  const [hrs, setHrs] = useState(8);
+  const [emps, setEmps] = useState([{ id: uid(), name: "", day: 900, hrs: 8 }]);
+  const [tools, setTools] = useState([{ id: uid(), name: "", cost: 0, qty: 1 }]);
+  const [split, setSplit] = useState(1);
+  const [other, setOther] = useState(0);
+  const [gstPct, setGstPct] = useState(18);
+  const [msg, setMsg] = useState("");
+  function upEmp(i, k, v) { const n = emps.slice(); n[i] = Object.assign({}, n[i]); n[i][k] = v; setEmps(n); }
+  function upTool(i, k, v) { const n = tools.slice(); n[i] = Object.assign({}, n[i]); n[i][k] = v; setTools(n); }
+  const q = Math.max(1, Number(qty) || 1);
+  const wt = (Number(bl) || 0) * (Number(bw) || 0) * (Number(bh) || 0) * VMC_MATS[mat][0] / 1e9;
+  const matCost = wt * (Number(matRate) || 0);
+  const machine = (Number(mhr) || 0) * (Number(hrs) || 0);
+  const empRows = emps.map(function (em) { return { name: em.name || "Employee", day: Number(em.day) || 0, hrs: Number(em.hrs) || 0, cost: (Number(em.day) || 0) / 8 * (Number(em.hrs) || 0) }; });
+  const empTotal = empRows.reduce(function (a, em) { return a + em.cost; }, 0);
+  const toolRows = tools.map(function (tl) { return { name: tl.name || "Tool", cost: Number(tl.cost) || 0, qty: Number(tl.qty) || 0, total: (Number(tl.cost) || 0) * (Number(tl.qty) || 0) }; });
+  const toolTotal = toolRows.reduce(function (a, tl) { return a + tl.total; }, 0);
+  const sp = Math.max(1, Number(split) || 1);
+  const toolShare = toolTotal / sp;
+  const oth = Number(other) || 0;
+  const jobTotal = matCost + machine + empTotal + toolShare + oth;
+  const perPc = jobTotal / q;
+  const gstAmt = jobTotal * (Number(gstPct) || 0) / 100;
+  const grandIncl = Math.round(jobTotal + gstAmt);
+  const perPcIncl = grandIncl / q;
+  function quoteText() {
+    const L = ["*VMC PART COST QUOTE \u2014 " + BRAND.company + "*",
+      "Client: " + (p.custLabel || "-"),
+      "Part code: " + (pcode || "-"),
+      "Part: " + (partno || "-") + " | Qty: " + q + " pc",
+      "------------------------",
+      "Price: " + rsTxt(jobTotal),
+      "GST @" + (Number(gstPct) || 0) + "%: " + rsTxt(gstAmt),
+      "*TOTAL incl. GST (" + q + " pcs): " + rsTxt(grandIncl) + "*"];
+    if (BRAND.gstin) L.push("Our GSTIN: " + BRAND.gstin);
+    return L.join("\n");
+  }
+  function buildQuote() {
+    return {
+      id: quoteId(), kind: "vmc", client: p.custLabel || "", pcode: pcode.trim(), partno: partno.trim(),
+      ptype: "VMC 2.5D", size: "", qty: q,
+      lines: [
+        { label: "VMC machined part " + (partno.trim() || pcode.trim() || "") + " \u2014 " + q + " pc \u00D7 " + rsTxt(Math.round(perPc)), amt: jobTotal },
+        { label: "GST @ " + (Number(gstPct) || 0) + "%", amt: gstAmt }
+      ],
+      perPc: perPcIncl, grand: grandIncl, by: user.name, byId: user.id, at: Date.now()
+    };
+  }
+  function addToQuote() {
+    const nm = (partno.trim() || pcode.trim() || "part");
+    p.onAdd({
+      id: uid(), desc: "VMC machined part \u2014 " + nm,
+      material: pcode.trim(), qty: q, unit: "nos", rate: Math.round(perPc)
+    }, Number(gstPct) || 0);
+    setMsg("Added to quotation \u2713 \u2014 open the Quotation tab when all parts are added.");
+    setPartno("");
+  }
+  function pdf() {
+    const qt = buildQuote();
+    partPdf(qt).then(function () { setMsg("Cost-sheet PDF downloaded \u2713 (use Add to Quotation for the GST bill)."); },
+      function (e2) { setMsg("PDF engine could not load: " + e2.message); });
+  }
+  const NUM_S = Object.assign({}, INPUT_S, { textAlign: "right" });
+  return e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 16 } },
+    e(Card, null,
+      e(SectionTitle, { title: "Job details" }),
+      e("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 6 } },
+        e(Field, { label: "Part code" }, e("input", { style: INPUT_S, value: pcode, onChange: function (ev) { setPcode(ev.target.value); } })),
+        e(Field, { label: "Part no. / name" }, e("input", { style: INPUT_S, value: partno, onChange: function (ev) { setPartno(ev.target.value); } })),
+        e(Field, { label: "Qty (pcs)" }, e("input", { style: INPUT_S, type: "number", min: 1, value: qty, onChange: function (ev) { setQty(ev.target.value); } })),
+        e(Field, { label: "GST %" }, e("input", { style: INPUT_S, type: "number", min: 0, max: 28, value: gstPct, onChange: function (ev) { setGstPct(ev.target.value); } }))),
+      e(SectionTitle, { title: "Raw material (optional)" }),
+      e("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } },
+        e(Field, { label: "Material" }, e("select", { style: INPUT_S, value: mat, onChange: function (ev) { setMat(ev.target.value); } },
+          Object.keys(VMC_MATS).map(function (k) { return e("option", { key: k, value: k }, VMC_MATS[k][1] + " (" + VMC_MATS[k][0] + " kg/m\u00B3)"); }))),
+        e(Field, { label: "Material rate \u20B9/kg" }, e("input", { style: NUM_S, type: "number", min: 0, value: matRate, onChange: function (ev) { setMatRate(ev.target.value); } }))),
+      e("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 } },
+        e(Field, { label: "Block L (mm)" }, e("input", { style: NUM_S, type: "number", min: 0, value: bl, onChange: function (ev) { setBl(ev.target.value); } })),
+        e(Field, { label: "Block W (mm)" }, e("input", { style: NUM_S, type: "number", min: 0, value: bw, onChange: function (ev) { setBw(ev.target.value); } })),
+        e(Field, { label: "Block H (mm)" }, e("input", { style: NUM_S, type: "number", min: 0, value: bh, onChange: function (ev) { setBh(ev.target.value); } }))),
+      e("div", { style: { fontSize: 12, color: C.mute, margin: "0 0 10px" } }, "Leave size or rate at 0 when material is supplied by the customer \u2014 material cost stays \u20B90."),
+      e(SectionTitle, { title: "Machine run time" }),
+      e("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } },
+        e(Field, { label: "Machine cost \u20B9 / hr" }, e("input", { style: NUM_S, type: "number", min: 0, step: 25, value: mhr, onChange: function (ev) { setMhr(ev.target.value); } })),
+        e(Field, { label: "Machine run time (hrs)" }, e("input", { style: NUM_S, type: "number", min: 0, step: 0.5, value: hrs, onChange: function (ev) { setHrs(ev.target.value); } }))),
+      e(SectionTitle, { title: "Employee cost" }),
+      emps.map(function (em, i) {
+        return e("div", { key: em.id, style: { display: "grid", gridTemplateColumns: "2fr 1fr 1fr 34px", gap: 8, marginBottom: 8, alignItems: "end" } },
+          e(Field, { label: i === 0 ? "Employee name" : "" }, e("input", { style: INPUT_S, value: em.name, onChange: function (ev) { upEmp(i, "name", ev.target.value); } })),
+          e(Field, { label: i === 0 ? "Cost \u20B9/day" : "" }, e("input", { style: NUM_S, type: "number", min: 0, step: 50, value: em.day, onChange: function (ev) { upEmp(i, "day", ev.target.value); } })),
+          e(Field, { label: i === 0 ? "Hours on job" : "" }, e("input", { style: NUM_S, type: "number", min: 0, step: 0.5, value: em.hrs, onChange: function (ev) { upEmp(i, "hrs", ev.target.value); } })),
+          e("button", { onClick: function () { setEmps(emps.filter(function (x) { return x.id !== em.id; })); }, title: "Remove", style: { color: C.red, fontWeight: 700, height: 34 } }, "\u2715"));
+      }),
+      e(Btn, { small: true, kind: "ghost", onClick: function () { setEmps(emps.concat([{ id: uid(), name: "", day: 900, hrs: 8 }])); }, label: "+ Add employee" }),
+      empTotal > 0 ? e("div", { style: { fontSize: 12, color: C.green, fontWeight: 700, margin: "6px 0" } }, "Employee total: " + inr(empTotal)) : null,
+      e("div", { style: { fontSize: 12, color: C.mute, margin: "4px 0 10px" } }, "Per-hour rate = day cost \u00F7 8. Each employee's cost = per-hour \u00D7 hours they worked on this job."),
+      e(SectionTitle, { title: "Tooling / inserts used" }),
+      tools.map(function (tl, i) {
+        return e("div", { key: tl.id, style: { display: "grid", gridTemplateColumns: "2fr 1fr 1fr 34px", gap: 8, marginBottom: 8, alignItems: "end" } },
+          e(Field, { label: i === 0 ? "Insert / tool" : "" }, e("input", { style: INPUT_S, value: tl.name, onChange: function (ev) { upTool(i, "name", ev.target.value); } })),
+          e(Field, { label: i === 0 ? "Cost \u20B9/pc" : "" }, e("input", { style: NUM_S, type: "number", min: 0, step: 10, value: tl.cost, onChange: function (ev) { upTool(i, "cost", ev.target.value); } })),
+          e(Field, { label: i === 0 ? "Qty used" : "" }, e("input", { style: NUM_S, type: "number", min: 0, value: tl.qty, onChange: function (ev) { upTool(i, "qty", ev.target.value); } })),
+          e("button", { onClick: function () { setTools(tools.filter(function (x) { return x.id !== tl.id; })); }, title: "Remove", style: { color: C.red, fontWeight: 700, height: 34 } }, "\u2715"));
+      }),
+      e(Btn, { small: true, kind: "ghost", onClick: function () { setTools(tools.concat([{ id: uid(), name: "", cost: 0, qty: 1 }])); }, label: "+ Add tool / insert" }),
+      e("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 } },
+        e(Field, { label: "Tooling shared across (jobs)" }, e("input", { style: NUM_S, type: "number", min: 1, value: split, onChange: function (ev) { setSplit(ev.target.value); } })),
+        e(Field, { label: "Other charges \u20B9" }, e("input", { style: NUM_S, type: "number", min: 0, step: 50, value: other, onChange: function (ev) { setOther(ev.target.value); } }))),
+      toolTotal > 0 ? e("div", { style: { fontSize: 12, color: C.green, fontWeight: 700, margin: "6px 0" } }, "Tooling total: " + inr(toolTotal) + (sp > 1 ? " \u00F7 " + sp + " jobs = " + inr(toolShare) + " this job" : "")) : null,
+      e("div", { style: { fontSize: 12, color: C.mute, marginTop: 4 } }, "If the same set of inserts machined 2 parts, enter 2 in \u201Cshared across\u201D \u2014 this job carries half the tooling cost.")),
+    e(Card, null,
+      e(SectionTitle, { title: "Costing" }),
+      e("table", { style: { width: "100%" } }, e("tbody", null,
+        matCost > 0 ? e("tr", null, e("td", { style: { color: C.mute } }, "Raw material (" + VMC_MATS[mat][1] + ", " + wt.toFixed(2) + " kg)"), e("td", { style: { textAlign: "right" } }, inr(matCost))) : null,
+        e("tr", null, e("td", { style: { color: C.mute } }, "Machine cost \u2014 " + hrs + " hr @\u20B9" + mhr + "/hr"), e("td", { style: { textAlign: "right" } }, inr(machine))),
+        empRows.map(function (em, i) {
+          return em.cost > 0 ? e("tr", { key: "e" + i }, e("td", { style: { color: C.mute } }, em.name + " \u2014 " + em.hrs + " hr @\u20B9" + em.day + "/day"), e("td", { style: { textAlign: "right" } }, inr(em.cost))) : null;
+        }),
+        toolShare > 0 ? e("tr", null, e("td", { style: { color: C.mute } }, "Tooling cost" + (sp > 1 ? " \u00F7" + sp : "")), e("td", { style: { textAlign: "right" } }, inr(toolShare))) : null,
+        oth > 0 ? e("tr", null, e("td", { style: { color: C.mute } }, "Other charges"), e("td", { style: { textAlign: "right" } }, inr(oth))) : null,
+        e("tr", null, e("td", { style: { fontWeight: 700, borderTop: "2px solid " + C.blue, paddingTop: 8 } }, "Total job cost"), e("td", { style: { textAlign: "right", fontWeight: 700, borderTop: "2px solid " + C.blue, paddingTop: 8 } }, inr(jobTotal))),
+        q > 1 ? e("tr", null, e("td", { style: { color: C.mute } }, "Cost per piece (\u00F7" + q + ")"), e("td", { style: { textAlign: "right" } }, inr(perPc))) : null,
+        e("tr", null, e("td", { style: { color: C.mute } }, "GST @ " + (Number(gstPct) || 0) + "%"), e("td", { style: { textAlign: "right" } }, inr(gstAmt))),
+        e("tr", null, e("td", { style: { fontSize: 17, fontWeight: 800, color: C.accent } }, "Total incl. GST (" + q + " pc)"), e("td", { style: { textAlign: "right", fontSize: 17, fontWeight: 800, color: C.accent } }, inr(grandIncl))),
+        e("tr", null, e("td", { style: { color: C.mute, fontSize: 12 } }, "Per piece incl. GST"), e("td", { style: { textAlign: "right", fontSize: 12, color: C.mute } }, inr(perPcIncl))))),
+      msg ? e("div", { style: { fontSize: 13, fontWeight: 600, margin: "10px 0", color: msg.indexOf("\u2713") >= 0 ? C.green : C.blue } }, msg) : null,
+      e("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 } },
+        e(Btn, { kind: "accent", onClick: addToQuote, label: "+ Add to Quotation (" + inr(perPc) + "/pc)" }),
+        e(Btn, { kind: "ghost", onClick: pdf, label: "Cost PDF" }),
+        e(Btn, { kind: "ghost", onClick: function () { waShare(quoteText()); }, label: "WhatsApp" }),
+        e(Btn, { kind: "ghost", onClick: function () { copyTxt(quoteText().replace(/\*/g, ""), function () { setMsg("Quote text copied \u2713"); }); }, label: "Copy" })),
+      e("div", { style: { fontSize: 12, color: C.mute, marginTop: 10 } }, "Job cost = material + machine hours \u00D7 rate + employees + tooling share + other. Cost per piece = job cost \u00F7 qty.")));
+}
+
+// ---- Module 3: GST quotation (customer-facing estimate with line items) ----
+function GeneralQuote(p) {
+  const db = p.db, user = p.user;
+  const emptyItem = function () { return { id: uid(), desc: "", material: "", qty: 1, unit: "nos", rate: "" }; };
+  const q = p.q;
+  const custSel = q.custSel, custName2 = q.custName2, reference = q.reference, items = q.items, gstPct = q.gstPct, discount = q.discount, notes = q.notes;
+  function setCustSel(v) { p.upQ("custSel", v); }
+  function setCustName2(v) { p.upQ("custName2", v); }
+  function setReference(v) { p.upQ("reference", v); }
+  function setItems(v) { p.upQ("items", v); }
+  function setGstPct(v) { p.upQ("gstPct", v); }
+  function setDiscount(v) { p.upQ("discount", v); }
+  function setNotes(v) { p.upQ("notes", v); }
+  const [msg, setMsg] = useState("");
+  function upIt(i, k, v) { const n = items.slice(); n[i] = Object.assign({}, n[i]); n[i][k] = v; setItems(n); }
+  const t = quoteTotals({ items: items, gstPct: gstPct, discount: discount });
+  function saveQuote() {
+    const nm = custSel ? custName(db, custSel) : custName2.trim();
+    const its = items.filter(function (it) { return String(it.desc).trim() && Number(it.qty) > 0 && Number(it.rate) > 0; })
+      .map(function (it) { return { id: it.id, desc: String(it.desc).trim(), material: String(it.material || "").trim(), qty: Number(it.qty), unit: it.unit, rate: Number(it.rate) }; });
+    if (!nm) { setMsg("Select a customer or type a customer name."); return; }
+    if (!its.length) { setMsg("Add at least one line with description, qty and rate."); return; }
+    const cu = custSel ? db.customers.find(function (x) { return x.id === custSel; }) : null;
+    const qt = {
+      id: quoteId(), kind: "general", customerId: custSel || null, customerName: nm, custGstin: (cu && cu.gstin) || "", reference: reference.trim(),
+      items: its, gstPct: Number(gstPct) || 0, discount: Number(discount) || 0, notes: notes.trim(),
+      by: user.name, byId: user.id, at: Date.now()
+    };
+    persistQuote(user, qt, p.refresh, function () {
+      setMsg("Saved " + qt.id + " \u2713 \u2014 downloading PDF\u2026");
+      quotePdf(qt).then(function () { setMsg("Saved " + qt.id + " \u2713 \u2014 PDF downloaded."); },
+        function (e2) { setMsg("Saved " + qt.id + " \u2713 \u2014 but PDF engine could not load (" + e2.message + "). Use the PDF button in the saved list to retry."); });
+    });
+    p.resetQ();
+  }
+  const NUM_S = Object.assign({}, INPUT_S, { textAlign: "right" });
+  return e(Card, null,
+    e(SectionTitle, { title: "Quotation \u2014 all added parts in one GST bill", right: e("span", { style: { fontSize: 12, color: C.mute } }, "Parts added from the calculators land here automatically") }),
+    e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 } },
+      e("div", { style: { fontSize: 13, paddingTop: 4 } }, e("span", { style: { color: C.mute } }, "Billing to: "), e("b", null, custSel ? custName(db, custSel) : (custName2 || "\u2014 select the customer above \u2014"))),
+      e(Field, { label: "Reference (machine / complaint, optional)" }, e("input", { style: INPUT_S, value: reference, onChange: function (ev) { setReference(ev.target.value); } }))),
+    e("div", { style: { overflowX: "auto", marginBottom: 10 } }, e("table", null,
+      e("thead", null, e("tr", null, ["#", "Part / work description", "Part code", "Qty", "Unit", "Rate (\u20B9)", "Amount", ""].map(function (h) { return e("th", { key: h }, h); }))),
+      e("tbody", null, items.map(function (it, i) {
+        return e("tr", { key: it.id },
+          e("td", null, String(i + 1)),
+          e("td", { style: { minWidth: 220 } }, e("input", { style: INPUT_S, value: it.desc, onChange: function (ev) { upIt(i, "desc", ev.target.value); } })),
+          e("td", { style: { minWidth: 140 } }, e("input", { style: INPUT_S, value: it.material, onChange: function (ev) { upIt(i, "material", ev.target.value); } })),
+          e("td", { style: { width: 70 } }, e("input", { style: NUM_S, type: "number", min: 0, value: it.qty, onChange: function (ev) { upIt(i, "qty", ev.target.value); } })),
+          e("td", { style: { width: 76 } }, e("select", { style: INPUT_S, value: it.unit, onChange: function (ev) { upIt(i, "unit", ev.target.value); } }, QUOTE_UNITS.map(function (u) { return e("option", { key: u, value: u }, u); }))),
+          e("td", { style: { width: 110 } }, e("input", { style: NUM_S, type: "number", min: 0, value: it.rate, onChange: function (ev) { upIt(i, "rate", ev.target.value); } })),
+          e("td", { style: { textAlign: "right", fontWeight: 700, whiteSpace: "nowrap" } }, inr2((Number(it.qty) || 0) * (Number(it.rate) || 0))),
+          e("td", null, items.length > 1 ? e("button", { onClick: function () { setItems(items.filter(function (x) { return x.id !== it.id; })); }, style: { color: C.red, fontWeight: 700 } }, "\u2715") : null));
+      })))),
+    e(Btn, { small: true, kind: "ghost", onClick: function () { setItems(items.concat([emptyItem()])); }, label: "+ Add line" }),
+    e("div", { style: { display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end", marginTop: 14 } },
+      e("div", { style: { flex: "0 1 120px" } }, e(Field, { label: "GST %" }, e("input", { style: NUM_S, type: "number", min: 0, max: 28, value: gstPct, onChange: function (ev) { setGstPct(ev.target.value); } }))),
+      e("div", { style: { flex: "0 1 160px" } }, e(Field, { label: "Discount (\u20B9, optional)" }, e("input", { style: NUM_S, type: "number", min: 0, value: discount, onChange: function (ev) { setDiscount(ev.target.value); } }))),
+      e("div", { style: { flex: "1 1 240px", background: C.canvas, borderRadius: 10, padding: "10px 14px", fontSize: 13 } },
+        e("div", null, "Subtotal: ", e("b", null, inr2(t.sub))),
+        t.disc ? e("div", null, "Discount: ", e("b", null, "\u2212 " + inr2(t.disc))) : null,
+        e("div", null, "GST " + (Number(gstPct) || 0) + "%: ", e("b", null, inr2(t.gst))),
+        e("div", { style: { fontSize: 16, marginTop: 4 } }, "Grand total: ", e("b", { style: { color: C.accent } }, inr(t.grand))))),
+    e(Field, { label: "Terms & notes (printed on PDF)" }, e("textarea", { style: Object.assign({}, INPUT_S, { minHeight: 70, resize: "vertical" }), value: notes, onChange: function (ev) { setNotes(ev.target.value); } })),
+    msg ? e("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 10, color: msg.indexOf("\u2713") >= 0 ? C.green : C.red } }, msg) : null,
+    e(Btn, { kind: "accent", onClick: saveQuote, label: "Save & Download GST PDF" }));
+}
+
+// ---- Cost Generator page: tabs + shared saved list ----
+function CostGenerator(p) {
+  const db = p.db, user = p.user;
+  const [tab, setTab] = useState("turn");
+  const [delQ, setDelQ] = useState(null);
+  const [msg, setMsg] = useState("");
+  const emptyLine = function () { return { id: uid(), desc: "", material: "", qty: 1, unit: "nos", rate: "" }; };
+  const freshQ = function () { return { custSel: "", custName2: "", reference: "", items: [emptyLine()], gstPct: 18, discount: "", notes: QUOTE_TERMS }; };
+  const [q, setQ] = useState(freshQ);
+  function upQ(k, v) { setQ(function (prev) { const o = Object.assign({}, prev); o[k] = v; return o; }); }
+  function resetQ() { setQ(freshQ()); }
+  const liveCount = q.items.filter(function (it) { return String(it.desc).trim() && Number(it.rate) > 0; }).length;
+  function addLine(line, gstPct) {
+    setQ(function (prev) {
+      const kept = prev.items.filter(function (it) { return String(it.desc).trim() || Number(it.rate) > 0; });
+      return Object.assign({}, prev, { items: kept.concat([line]), gstPct: gstPct === undefined ? prev.gstPct : gstPct });
+    });
+  }
+  const selCust = q.custSel ? db.customers.find(function (x) { return x.id === q.custSel; }) : null;
+  const custLabel = selCust ? selCust.name : q.custName2;
+  function removeQuote(qt) {
+    const db2 = loadDB();
+    db2.quotes = db2.quotes.filter(function (x) { return x.id !== qt.id; });
+    logAct(db2, user.name, user.role, user.name + " deleted cost quote " + qt.id);
+    saveDB(db2, ["quotes", "activity"]);
+    setDelQ(null); p.refresh();
+  }
+  const TABS = [["turn", "Turned Parts"], ["vmc", "VMC 2.5D Machining"], ["gst", "Quotation & GST Bill" + (liveCount ? " (" + liveCount + ")" : "")]];
+  return e("div", null,
+    e("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 } },
+      TABS.map(function (tb) {
+        return e(Btn, { key: tb[0], kind: tab === tb[0] ? "primary" : "ghost", onClick: function () { setTab(tb[0]); }, label: tb[1] });
+      })),
+    e(Card, { style: { marginBottom: 16 } },
+      e(SectionTitle, { title: "Customer for this quotation" }),
+      e("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12, alignItems: "end" } },
+        e(Field, { label: "Registered customer" }, e("select", { style: INPUT_S, value: q.custSel, onChange: function (ev) { upQ("custSel", ev.target.value); } },
+          e("option", { value: "" }, "\u2014 Not registered / type the name \u2014"),
+          db.customers.map(function (cu) { return e("option", { key: cu.id, value: cu.id }, cu.name + " (" + cu.id + ")"); }))),
+        !q.custSel ? e(Field, { label: "Customer name" }, e("input", { style: INPUT_S, value: q.custName2, onChange: function (ev) { upQ("custName2", ev.target.value); } })) : null,
+        selCust && selCust.gstin ? e("div", { style: { fontSize: 13, paddingBottom: 10 } }, e("span", { style: { color: C.mute } }, "Customer GSTIN: "), e("b", null, selCust.gstin)) : null)),
+    liveCount && tab !== "gst" ? e("div", { style: { background: C.blueBg, border: "1px solid #bfdbf0", borderRadius: 8, padding: "8px 12px", marginBottom: 14, fontSize: 13, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
+      e("b", null, liveCount + " part(s) in the current quotation"),
+      e("span", { style: { color: C.mute } }, "\u2014 keep adding, then make one GST bill."),
+      e(Btn, { small: true, kind: "accent", onClick: function () { setTab("gst"); }, label: "Open Quotation \u2192" })) : null,
+    tab === "turn" ? e(TurnedCalc, { db: db, user: user, refresh: p.refresh, onAdd: addLine, custLabel: custLabel }) : null,
+    tab === "vmc" ? e(VmcCalc, { db: db, user: user, refresh: p.refresh, onAdd: addLine, custLabel: custLabel }) : null,
+    tab === "gst" ? e(GeneralQuote, { db: db, user: user, refresh: p.refresh, q: q, upQ: upQ, resetQ: resetQ }) : null,
+    e(Card, { style: { marginTop: 16 } },
+      e(SectionTitle, { title: "Saved quotes (" + db.quotes.length + ")", right: db.quotes.length ? e(Btn, { small: true, kind: "ghost", onClick: function () { allQuotesPdf(db.quotes).catch(function (e2) { setMsg("PDF engine could not load: " + e2.message); }); }, label: "Download All (PDF)" }) : null }),
+      msg ? e("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 8, color: C.red } }, msg) : null,
+      db.quotes.length ? db.quotes.map(function (qt) {
+        const g = quoteGrand(qt);
+        const who = qt.client || qt.customerName || "\u2014";
+        const what = qt.kind === "general" ? (qt.reference || (qt.items || []).length + " line(s)") : ((qt.partno || qt.pcode || "part") + " \u00B7 " + qt.ptype + (qt.size ? " \u00B7 " + qt.size : ""));
+        return e("div", { key: qt.id, style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "10px 0", borderBottom: "1px solid " + C.canvas } },
+          e("b", { className: "pcode", style: { minWidth: 100 } }, qt.id),
+          e(Pill, { text: qt.kind === "general" ? "GST" : (qt.kind === "vmc" ? "VMC" : qt.ptype), tone: "p-pri" }),
+          e("span", { style: { flex: "1 1 180px" } }, e("b", null, who), e("span", { style: { color: C.mute, fontSize: 12 } }, " \u00B7 " + what + (qt.qty ? " \u00B7 " + qt.qty + " pc" : ""))),
+          e("b", { style: { whiteSpace: "nowrap", color: C.amber } }, inr(g)),
+          e("span", { style: { fontSize: 11, color: C.mute } }, qt.by + " \u00B7 " + fmtDate(qt.at)),
+          e(Btn, { small: true, onClick: function () { anyQuotePdf(qt).catch(function (e2) { setMsg("PDF engine could not load: " + e2.message); }); }, label: "PDF" }),
+          (user.role === "admin" || qt.byId === user.id) ? (delQ === qt.id
+            ? e("span", { style: { display: "inline-flex", gap: 8, alignItems: "center" } },
+                e("b", { style: { fontSize: 12, color: C.red } }, "Delete?"),
+                e(Btn, { small: true, kind: "danger", onClick: function () { removeQuote(qt); }, label: "Yes" }),
+                e(Btn, { small: true, kind: "ghost", onClick: function () { setDelQ(null); }, label: "No" }))
+            : e(Btn, { small: true, kind: "danger", onClick: function () { setDelQ(qt.id); }, label: "Delete" })) : null);
+      }) : e("div", { style: { fontSize: 13, color: C.mute } }, "No quotes saved yet. Calculate a part and press Save Quote."),
+      e("div", { style: { fontSize: 12, color: C.mute, marginTop: 8 } }, "Saved quotes are shared \u2014 everyone on the team sees the same list (turned, VMC and GST quotes together). Customers never see this page.")));
+}
+
+// ================= TASK REMINDERS (big popup on login) =================
+function collectReminders(db, user) {
+  // Reminders are ONLY for department members, about their own assigned tasks.
+  const items = [];
+  const dept = deptOf(db, user);
+  if (!dept) return items;
+  db.complaints.forEach(function (c) {
+    (c.deptTasks || []).forEach(function (t) {
+      if (t.status === "Done" || !t.targetDate) return;
+      if (t.deptId !== user.id) return;
+      const b = balanceDays(t.targetDate);
+      if (b <= 2) items.push({ kind: "task", cid: c.id, label: (t.dept || "Dept") + " task · " + t.text + " · " + c.id, b: b, who: staffName(db, t.deptId) });
+    });
+  });
+  items.sort(function (a, b2) { return a.b - b2.b; });
+  return items;
+}
+function ReminderPopup(p) {
+  const db = p.db, user = p.user;
+  const [dismissed, setDismissed] = useState(false);
+  const dayKey = "sd_rem_" + user.id + "_" + new Date().toISOString().slice(0, 10);
+  let seen = false;
+  try { seen = !!sessionStorage.getItem(dayKey); } catch (e2) {}
+  if (dismissed || seen) return null;
+  const items = collectReminders(db, user);
+  if (!items.length) return null;
+  const overdue = items.filter(function (i) { return i.b < 0; }).length;
+  function close() {
+    try { sessionStorage.setItem(dayKey, "1"); } catch (e2) {}
+    setDismissed(true);
+  }
+  return e(Modal, { title: "⏰ Task reminders — " + user.name, onClose: close, width: 640 },
+    e("div", { style: { fontSize: 15, fontWeight: 700, color: overdue ? C.red : C.amber, marginBottom: 12 } },
+      overdue ? overdue + " item(s) OVERDUE — please act today." : "You have deadlines within 2 days."),
+    items.slice(0, 15).map(function (i, idx) {
+      const late = i.b < 0;
+      return e("div", {
+        key: idx,
+        onClick: function () { close(); p.onOpen(i.cid); },
+        style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "10px 12px", marginBottom: 8, borderRadius: 8, cursor: "pointer", background: late ? C.redBg : C.amberBg, border: "1px solid " + (late ? "#f3c2cd" : "#f2e2ad") }
+      },
+        e(Pill, { text: late ? "OVERDUE " + (-i.b) + "d" : (i.b === 0 ? "DUE TODAY" : i.b + "d left"), tone: late ? "p-late" : "p-warn" }),
+        e("span", { style: { flex: "1 1 240px", fontSize: 13, fontWeight: 600 } }, i.label));
+    }),
+    items.length > 15 ? e("div", { style: { fontSize: 12, color: C.mute, marginBottom: 8 } }, "+ " + (items.length - 15) + " more…") : null,
+    e("div", { style: { display: "flex", gap: 10, marginTop: 8 } },
+      e(Btn, { kind: "accent", onClick: close, label: "OK, got it" })),
+    e("div", { style: { fontSize: 11, color: C.mute, marginTop: 8 } }, "This reminder shows once a day per device. Tap any item to open it."));
+}
+
+// ================= DEPARTMENT DESK =================
+function DeptDesk(p) {
+  const db = p.db, user = p.user;
+  const dept = deptOf(db, user) || "Department";
+  const rows = [];
+  db.complaints.forEach(function (c) {
+    (c.deptTasks || []).forEach(function (t) {
+      if (t.deptId === user.id) rows.push({ c: c, t: t });
+    });
+  });
+  const open = rows.filter(function (r) { return r.t.status !== "Done"; });
+  const overdue = open.filter(function (r) { return r.t.targetDate && balanceDays(r.t.targetDate) < 0; });
+  const sorted = rows.slice().sort(function (a, b) {
+    const da = a.t.status === "Done" ? 1 : 0, dbb = b.t.status === "Done" ? 1 : 0;
+    if (da !== dbb) return da - dbb;
+    const ta = a.t.targetDate ? new Date(a.t.targetDate).getTime() : 9e15;
+    const tb = b.t.targetDate ? new Date(b.t.targetDate).getTime() : 9e15;
+    return ta - tb;
+  });
+  return e("div", null,
+    e("div", { style: { display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 } },
+      e(StatCard, { label: "My tasks", value: rows.length }),
+      e(StatCard, { label: "Open", value: open.length, color: C.blue }),
+      e(StatCard, { label: "Overdue", value: overdue.length, color: overdue.length ? C.red : C.green }),
+      e(StatCard, { label: "Done", value: rows.length - open.length, color: C.green })),
+    e(Card, null,
+      e(SectionTitle, { title: dept + " department — assigned tasks (" + rows.length + ")" }),
+      sorted.length ? e("div", { style: { overflowX: "auto" } }, e("table", null,
+        e("thead", null, e("tr", null, ["Complaint", "Customer", "Task", "Target", "Balance", "Status", ""].map(function (t) { return e("th", { key: t }, t); }))),
+        e("tbody", null, sorted.map(function (r) {
+          return e("tr", { key: r.t.id, onClick: function () { p.onOpen(r.c.id); }, style: { cursor: "pointer" } },
+            e("td", null, e("span", { className: "pcode" }, r.c.id)),
+            e("td", null, custName(db, r.c.customerId)),
+            e("td", null, r.t.text),
+            e("td", null, r.t.targetDate ? fmtDate(new Date(r.t.targetDate + "T00:00:00").getTime()) : "—"),
+            e("td", null, e(TaskBadge, { t: r.t })),
+            e("td", null, r.t.status),
+            e("td", null, e(Btn, { small: true, kind: "ghost", onClick: function (ev) { if (ev && ev.stopPropagation) ev.stopPropagation(); p.onOpen(r.c.id); }, label: "Open" })));
+        }))))
+        : e("div", { style: { fontSize: 13, color: C.mute } }, "No tasks assigned to your department yet. Tasks appear here the moment admin or sales staff assign them.")));
 }
 
 // ================= CUSTOMER HOME =================
